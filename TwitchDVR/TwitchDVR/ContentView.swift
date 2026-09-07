@@ -760,6 +760,21 @@ struct SettingsView: View {
                     .foregroundColor(.secondary)
             }
 
+            Section("Status Check") {
+                Picker("Check for live streams every", selection: $monitor.pollInterval) {
+                    Text("15 seconds").tag(TimeInterval(15))
+                    Text("30 seconds").tag(TimeInterval(30))
+                    Text("60 seconds").tag(TimeInterval(60))
+                    Text("120 seconds").tag(TimeInterval(120))
+                }
+                .onChange(of: monitor.pollInterval) { _ in
+                    monitor.savePollInterval()
+                }
+                Text("How often the app checks your channels for a live stream. Lower values detect streams faster but make more requests.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+
             Section("Recording Settings") {
                 Toggle("Keep Mac awake while monitoring", isOn: $monitor.preventSleep)
                     .onChange(of: monitor.preventSleep) { _ in

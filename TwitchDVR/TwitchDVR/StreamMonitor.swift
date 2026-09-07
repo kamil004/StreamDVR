@@ -44,7 +44,7 @@ class StreamMonitor: ObservableObject {
 
     private var statusTask: Task<Void, Never>?
     private var recorders: [String: StreamRecorder] = [:]
-    private var pollInterval: TimeInterval = 60
+    @Published var pollInterval: TimeInterval = 60
     private let sleepPreventer = SleepPreventer()
 
     struct LogEntry: Identifiable {
@@ -119,6 +119,9 @@ class StreamMonitor: ObservableObject {
         }
         refreshKickUsername()
 
+        let savedInterval = ConfigStore.load(key: "poll_interval").flatMap(TimeInterval.init) ?? 60
+        pollInterval = savedInterval > 0 ? savedInterval : 60
+
         if checkUpdates {
             checkForUpdate()
         }
@@ -142,11 +145,25 @@ class StreamMonitor: ObservableObject {
 
         // Always refresh channel status (online/offline + title) — immediately
         // at launch and then every pollInterval, regardless of monitoring.
+        restartStatusTask()
+    }
+
+    /// Saves the current poll interval and restarts the poller so it takes
+    /// effect immediately.
+    func savePollInterval() {
+        ConfigStore.save(key: "poll_interval", value: String(Int(pollInterval)))
+        restartStatusTask()
+    }
+
+    /// Restarts the periodic channel-status poller with the current pollInterval.
+    private func restartStatusTask() {
+        statusTask?.cancel()
+        let interval = max(pollInterval, 5)
         statusTask = Task { [weak self] in
             guard let self = self else { return }
             await self.checkAllChannels()
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: UInt64(self.pollInterval * 1_000_000_000))
+                try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
                 await self.checkAllChannels()
             }
         }
