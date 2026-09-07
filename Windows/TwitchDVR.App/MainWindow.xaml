@@ -68,7 +68,7 @@
                 </TextBlock>
 
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <Button x:Name="UpdateButton" Click="OnCheckForUpdate" Padding="8,3" Margin="6,0,0,0"
+                    <Button x:Name="UpdateButton" Click="OnDownloadUpdate" Padding="8,3" Margin="6,0,0,0"
                             Style="{StaticResource SmallButton}" Cursor="Hand"
                             ToolTip="Download and install the new version"
                             Visibility="{Binding HasUpdate, Converter={StaticResource BoolVisConverter}}">
@@ -136,12 +136,17 @@
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
 
-                                            <Grid Grid.Column="0" Width="36" Height="36" VerticalAlignment="Center"
+                                            <TextBlock Grid.Column="0" Text="☰" FontSize="14" Foreground="#B8AECF"
+                                                       VerticalAlignment="Center" Margin="0,0,8,0" Cursor="SizeAll"
+                                                       ToolTip="Drag to reorder" />
+
+                                            <Grid Grid.Column="1" Width="36" Height="36" VerticalAlignment="Center"
                                                   Margin="0,0,10,0" ToolTip="{Binding Channel.DisplayName}">
                                                 <Ellipse Fill="#E6DFF6" />
                                                 <TextBlock Text="{Binding Channel.DisplayName, Converter={StaticResource InitialConverter}}"
@@ -155,7 +160,7 @@
                                                 </Ellipse>
                                             </Grid>
 
-                                            <StackPanel Grid.Column="1">
+                                            <StackPanel Grid.Column="2">
                                                 <StackPanel Orientation="Horizontal">
                                                     <TextBlock Text="{Binding Channel.DisplayName}" FontWeight="Bold" FontSize="14"
                                                            Cursor="Hand" MouseLeftButtonDown="OnOpenChannelName" />
@@ -172,14 +177,14 @@
                                                            Foreground="{StaticResource AccentBrush}" />
                                             </StackPanel>
 
-                                            <StackPanel Grid.Column="2" Orientation="Vertical" VerticalAlignment="Center"
+                                            <StackPanel Grid.Column="3" Orientation="Vertical" VerticalAlignment="Center"
                                                         Margin="12,0" MinWidth="180">
                                                 <TextBlock Text="{Binding StatusText}" FontSize="12"
                                                            Foreground="{Binding IsActive, Converter={StaticResource BoolRedConverter}}" />
                                                 <TextBlock Text="{Binding StatsText}" FontSize="10" Foreground="Gray" />
                                             </StackPanel>
 
-                                            <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
                                                 <ToggleButton x:Name="RecordToggle" IsChecked="{Binding IsActive}"
                                                               Width="60"
                                                               Content="{Binding IsActive, Converter={StaticResource BoolToRecordButtonTextConverter}}"

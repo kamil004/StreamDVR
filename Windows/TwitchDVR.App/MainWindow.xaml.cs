@@ -387,7 +387,7 @@ public partial class MainWindow : Window
 
         if (oldIndex != newIndex)
         {
-            items.Move(oldIndex, newIndex);
+            Monitor.ReorderChannel(oldIndex, newIndex);
         }
         e.Handled = true;
     }

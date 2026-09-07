@@ -607,6 +607,7 @@ public class StreamMonitor : INotifyPropertyChanged
         var channel = item.Channel;
         try
         {
+            var wasLive = !string.IsNullOrEmpty(item.Channel.CurrentStreamTitle);
             var status = await PlatformProvider.GetStatusAsync(channel.Platform, channel.Login);
             await UiAsync(() =>
             {
@@ -615,10 +616,12 @@ public class StreamMonitor : INotifyPropertyChanged
                 item.Channel.DisplayName = status.DisplayName;
                 item.Channel.CurrentStreamTitle = status.IsLive ? status.Title : "";
                 item.Channel.CurrentGame = status.IsLive ? status.Game : "";
-            });
 
-            var wasLive = !string.IsNullOrEmpty(item.Channel.CurrentStreamTitle);
-            if (status != null) OnlineCount = Channels.Count(c => !string.IsNullOrEmpty(c.Channel.CurrentStreamTitle));
+                if (status.IsLive != wasLive && AutoSortLive)
+                    SortLiveChannelsToTop();
+
+                OnlineCount = Channels.Count(c => !string.IsNullOrEmpty(c.Channel.CurrentStreamTitle));
+            });
 
             if (status != null && status.IsLive && IsMonitoring && !_recorders.ContainsKey(channel.Id))
             {
@@ -709,6 +712,45 @@ public class StreamMonitor : INotifyPropertyChanged
             platform = c.Channel.Platform.Slug()
         }).ToList();
         ConfigStore.Save("channels", JsonSerializer.Serialize(payload));
+    }
+
+    static bool ChannelIsLive(ChannelItem item) => !string.IsNullOrEmpty(item.Channel.CurrentStreamTitle);
+
+    /// Moves all live channels to the top of the list, keeping their relative order.
+    void SortLiveChannelsToTop()
+    {
+        if (Channels.Count < 2) return;
+
+        var isSorted = true;
+        var seenOffline = false;
+        foreach (var c in Channels)
+        {
+            if (ChannelIsLive(c))
+            {
+                if (seenOffline) { isSorted = false; break; }
+            }
+            else
+            {
+                seenOffline = true;
+            }
+        }
+        if (isSorted) return;
+
+        var live = Channels.Where(ChannelIsLive).ToList();
+        var offline = Channels.Where(c => !ChannelIsLive(c)).ToList();
+        Channels.Clear();
+        foreach (var item in live) Channels.Add(item);
+        foreach (var item in offline) Channels.Add(item);
+        SaveChannels();
+    }
+
+    /// Persists a manual reorder (e.g. drag-to-reorder in the UI).
+    public void ReorderChannel(int oldIndex, int newIndex)
+    {
+        if (oldIndex < 0 || oldIndex >= Channels.Count || newIndex < 0 || newIndex >= Channels.Count) return;
+        if (oldIndex == newIndex) return;
+        Channels.Move(oldIndex, newIndex);
+        SaveChannels();
     }
 
     static string? JsonString(JsonElement el, string name)
