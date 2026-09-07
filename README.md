@@ -100,7 +100,8 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1                   # auto-ve
 
 - Requires .NET SDK 8.0+ and WebView2 Runtime.
 - `build.ps1` bumps the PATCH version (`Windows/version.txt`), publishes a
-  self-contained single-file `StreamDVR.exe` and zips it as `StreamDVR-Windows.zip`.
+  self-contained single-file `StreamDVR.exe` and zips it as
+  `StreamDVR-Windows-v<version>.zip`.
 - On first launch the Windows app auto-installs missing `streamlink` / `ffmpeg` via
   `winget`.
 - See `Windows/README.md` for details.
@@ -113,7 +114,7 @@ numbers are **independent**:
 | Platform | Version | Release asset prefix |
 |----------|---------|----------------------|
 | macOS    | `1.1.x` | `StreamDVR-macOS-v*.zip` |
-| Windows  | `1.0.x` | `StreamDVR-Windows.zip`  |
+| Windows  | `1.0.x` | `StreamDVR-Windows-v*.zip` |
 
 Each app's updater only looks at its own asset prefix, so releasing one platform
 never triggers updates on the other.

@@ -8,7 +8,7 @@
     <UseWPF>true</UseWPF>
     <RootNamespace>TwitchDVR.App</RootNamespace>
     <AssemblyName>StreamDVR</AssemblyName>
-    <Version>1.0.7</Version>
+    <Version>1.0.8</Version>
     <Product>StreamDVR</Product>
     <Description>Record Twitch, Chaturbate and Kick streams</Description>
     <ApplicationManifest>app.manifest</ApplicationManifest>

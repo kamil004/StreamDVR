@@ -11,7 +11,9 @@ icon.iconset/
 **/obj/
 **/bin/
 Windows/TwitchDVR.exe
+Windows/StreamDVR.exe
 Windows/TwitchDVR-Windows.zip
+Windows/StreamDVR-Windows*.zip
 Windows/TwitchDVR-Windows/
 Windows/.vs/
 

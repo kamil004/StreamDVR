@@ -47,6 +47,8 @@ public partial class MainWindow : Window
     {
         var version = Assembly.GetExecutingAssembly().GetName().Version;
         Title = version == null ? "StreamDVR" : $"StreamDVR {version.Major}.{version.Minor}.{version.Build}";
+        VersionText!.Text = version == null ? "Version" : $"✓ Version {version.Major}.{version.Minor}.{version.Build}";
+        InitPollIntervalPicker();
     }
 
     void UpdateTaskbarBadge()
@@ -82,7 +84,7 @@ public partial class MainWindow : Window
         {
             LoginButton.Content = "Logout";
             AccountText!.Text = $"Logged in as {Monitor.Username}";
-            SignInButton!.Content = "Sign in with a different account";
+            SignInButton!.Content = "Log out of Twitch";
         }
         else
         {
@@ -139,6 +141,25 @@ public partial class MainWindow : Window
         if (PlatformPicker?.SelectedItem is ComboBoxItem item && item.Tag is string tag)
             return StreamPlatformExtensions.FromSlug(tag);
         return StreamPlatform.Twitch;
+    }
+
+    void InitPollIntervalPicker()
+    {
+        if (PollIntervalPicker == null) return;
+        foreach (var itm in PollIntervalPicker.Items)
+        {
+            if (itm is ComboBoxItem cbi && int.TryParse(cbi.Tag as string, out var s) && s == Monitor.PollIntervalSeconds)
+            {
+                PollIntervalPicker.SelectedItem = itm;
+                return;
+            }
+        }
+    }
+
+    void OnPollIntervalChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (PollIntervalPicker.SelectedItem is ComboBoxItem item && int.TryParse(item.Tag as string, out var seconds))
+            Monitor.PollIntervalSeconds = seconds;
     }
 
     void OnLoginToggle(object sender, RoutedEventArgs e)

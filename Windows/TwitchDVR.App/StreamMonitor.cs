@@ -55,7 +55,23 @@ public class StreamMonitor : INotifyPropertyChanged
     public ObservableCollection<LogEntry> Logs { get; } = new();
     public ObservableCollection<FileItem> Recordings { get; } = new();
 
-    const int PollIntervalSeconds = 60;
+    const int DefaultPollIntervalSeconds = 60;
+    int _pollIntervalSeconds = DefaultPollIntervalSeconds;
+
+    /// How often channels are checked for a live stream (15 / 30 / 60 / 120 s).
+    public int PollIntervalSeconds
+    {
+        get => _pollIntervalSeconds;
+        set
+        {
+            var v = value is 15 or 30 or 60 or 120 ? value : DefaultPollIntervalSeconds;
+            if (_pollIntervalSeconds == v) return;
+            _pollIntervalSeconds = v;
+            ConfigStore.Save("poll_interval", v.ToString());
+            OnPropertyChanged();
+            RestartPollLoop();
+        }
+    }
 
     readonly Dictionary<string, StreamRecorderResult> _recorders = new();
     CancellationTokenSource? _cts;
@@ -70,6 +86,8 @@ public class StreamMonitor : INotifyPropertyChanged
 
         _autoSortLive = ConfigStore.Load("auto_sort_live") == "1";
         _preventSleep = ConfigStore.Load("prevent_sleep") == "1";
+        if (int.TryParse(ConfigStore.Load("poll_interval"), out var poll) && poll is 15 or 30 or 60 or 120)
+            _pollIntervalSeconds = poll;
 
         IsLoggedIn = TwitchApi.IsLoggedIn;
         Username = TwitchApi.Username ?? "";
@@ -77,7 +95,7 @@ public class StreamMonitor : INotifyPropertyChanged
         IsKickLoggedIn = KickSession.IsLoggedIn;
         if (IsKickLoggedIn) RefreshKickUsername();
 
-        // Always keep statuses fresh: immediately and then every 60 s.
+        // Always keep statuses fresh: immediately and then every poll interval.
         _cts = new CancellationTokenSource();
         _ = Task.Run(() => PollLoopAsync(_cts.Token));
 
@@ -185,7 +203,7 @@ public class StreamMonitor : INotifyPropertyChanged
     {
         UpdateCheckState.Checking => "Checking...",
         UpdateCheckState.UpToDate => "Up to date",
-        UpdateCheckState.UpdateAvailable => $"Update v{PendingUpdate?.Version} available",
+        UpdateCheckState.UpdateAvailable => $"Update {PendingUpdate?.Version} available",
         UpdateCheckState.Downloading => "Downloading...",
         UpdateCheckState.Error => "Update check failed",
         _ => ""
@@ -418,15 +436,12 @@ public class StreamMonitor : INotifyPropertyChanged
     {
         var start = DateTime.UtcNow;
         var lastProbe = DateTime.MinValue;
-        var lastSize = 0L;
         var resolution = "";
         var bitrate = "";
 
         while (true)
         {
             var fileSize = ReadSize(outputPath);
-            var transferKbps = (lastSize > 0 && fileSize >= lastSize) ? (fileSize - lastSize) / 1024.0 : 0;
-            lastSize = fileSize;
 
             if ((DateTime.UtcNow - lastProbe).TotalSeconds >= 5)
             {
@@ -442,7 +457,7 @@ public class StreamMonitor : INotifyPropertyChanged
             {
                 var elapsed = DateTime.UtcNow - start;
                 item.StatusText = $"Recording {(int)elapsed.TotalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}";
-                item.StatsText = PrettyStats(fileSize, transferKbps, resolution, bitrate);
+                item.StatsText = PrettyStats(fileSize, resolution, bitrate);
             });
 
             await Task.Delay(1000);
@@ -461,12 +476,11 @@ public class StreamMonitor : INotifyPropertyChanged
         catch { return 0; }
     }
 
-    static string PrettyStats(long size, double transferKbps, string resolution, string bitrate)
+    static string PrettyStats(long size, string resolution, string bitrate)
     {
         var parts = new List<string>
         {
             FormatSize(size),
-            $"{transferKbps:0} KB/s",
             resolution,
             bitrate
         };
@@ -565,6 +579,13 @@ public class StreamMonitor : INotifyPropertyChanged
         {
             return (0, "", "");
         }
+    }
+
+    void RestartPollLoop()
+    {
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
+        _ = Task.Run(() => PollLoopAsync(_cts.Token));
     }
 
     async Task PollLoopAsync(CancellationToken ct)
@@ -797,7 +818,7 @@ public class StreamMonitor : INotifyPropertyChanged
                 {
                     PendingUpdate = latest;
                     UpdateState = UpdateCheckState.UpdateAvailable;
-                    AddLog($"Update available: v{latest.Version}");
+                    AddLog($"Update available: {latest.Version}");
                 });
             }
             else
@@ -853,7 +874,7 @@ rmdir /S /Q ""{tempDir}""
 
                 await UiAsync(() =>
                 {
-                    AddLog($"Update v{info.Version} downloaded — restarting", isSuccess: true);
+                    AddLog($"Update {info.Version} downloaded — restarting", isSuccess: true);
                     UpdateState = UpdateCheckState.Idle;
                 });
 

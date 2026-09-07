@@ -72,11 +72,13 @@
                             ToolTip="Download and install the new version"
                             Visibility="{Binding HasUpdate, Converter={StaticResource BoolVisConverter}}">
                         <TextBlock FontSize="11">
-                            <Run Text="⬆ Update v" /><Run Text="{Binding PendingUpdate.Version, Mode=OneWay}" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                            <Run Text="⬆ Update " /><Run Text="{Binding PendingUpdate.Version, Mode=OneWay}" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
                         </TextBlock>
                     </Button>
                     <TextBlock x:Name="UpdateStatusText" FontSize="11" Foreground="Gray"
                                VerticalAlignment="Center" Margin="6,0,0,0" />
+                    <TextBlock x:Name="VersionText" FontSize="11" FontWeight="SemiBold"
+                               Foreground="#2EA043" VerticalAlignment="Center" Margin="10,0,0,0" />
                 </StackPanel>
             </DockPanel>
         </Border>
@@ -286,6 +288,23 @@
                                            Margin="0,2,0,6" />
                                 <Button Content="Choose Folder..." Padding="12,6" HorizontalAlignment="Left"
                                         Style="{StaticResource AccentSolidButton}" Click="OnChooseFolder" />
+                            </StackPanel>
+                        </GroupBox>
+
+                        <GroupBox Header="Status Check" Padding="8" Margin="0,0,0,12">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Check for live streams every:" VerticalAlignment="Center" />
+                                    <ComboBox x:Name="PollIntervalPicker" Width="130" Margin="8,0,0,0"
+                                              SelectionChanged="OnPollIntervalChanged">
+                                        <ComboBoxItem Content="15 seconds" Tag="15" />
+                                        <ComboBoxItem Content="30 seconds" Tag="30" />
+                                        <ComboBoxItem Content="60 seconds" Tag="60" />
+                                        <ComboBoxItem Content="120 seconds" Tag="120" />
+                                    </ComboBox>
+                                </StackPanel>
+                                <TextBlock Text="How often the app checks your channels for a live stream. Lower values detect streams faster but make more requests."
+                                           FontSize="11" Foreground="Gray" TextWrapping="Wrap" Margin="0,4,0,0" />
                             </StackPanel>
                         </GroupBox>
 

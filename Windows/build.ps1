@@ -44,7 +44,7 @@ Write-Host ""
 Write-Host "==== Output: $publishDir\StreamDVR.exe ===="
 Write-Host ""
 
-$zipPath = Join-Path $root "StreamDVR-Windows.zip"
+$zipPath = Join-Path $root "StreamDVR-Windows-v$newVersion.zip"
 if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
 Compress-Archive -Path (Join-Path $publishDir "StreamDVR.exe") -DestinationPath $zipPath
 Write-Host "Zipped: $zipPath"

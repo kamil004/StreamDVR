@@ -15,7 +15,11 @@ public static class UpdateChecker
 
     static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(20) };
 
-    public static string StripV(string s) => s.StartsWith('v') ? s[1..] : s;
+    public static string StripV(string s)
+    {
+        while (s.StartsWith('v') || s.StartsWith('-')) s = s[1..];
+        return s;
+    }
 
     public static int CompareVersions(string a, string b)
     {
@@ -57,7 +61,8 @@ public static class UpdateChecker
                     var urlStr = asset.TryGetProperty("browser_download_url", out var u) ? u.GetString() : null;
                     if (string.IsNullOrEmpty(urlStr) || !Uri.TryCreate(urlStr, UriKind.Absolute, out var url)) continue;
 
-                    var version = StripV(name.Replace(AssetPrefix, "").Replace("-", "").Replace(".zip", ""));
+                    var version = StripV(name.Replace(AssetPrefix, "", StringComparison.OrdinalIgnoreCase)
+                        .Replace(".zip", "", StringComparison.OrdinalIgnoreCase));
                     var info = new UpdateInfo(version, tag, url, name);
                     if (best == null || published > DateTime.MinValue)
                     {
