@@ -303,15 +303,22 @@ class StreamMonitor: ObservableObject {
                 }
 
                 let scriptURL = FileManager.default.temporaryDirectory.appendingPathComponent("streamdvr-install.sh")
+                let logURL = FileManager.default.temporaryDirectory.appendingPathComponent("streamdvr-install.log")
+                try? FileManager.default.removeItem(at: logURL)
                 let script = """
                 #!/bin/bash
+                exec >> "\(logURL.path)" 2>&1
+                echo "=== StreamDVR updater $(date '+%F %T') ==="
+                echo "updating to v\(info.version) from \(newApp.path)"
                 while pgrep -x "StreamDVR" > /dev/null 2>&1; do sleep 0.5; done
+                echo "app exited, installing"
                 sleep 1
-                rm -rf /Applications/StreamDVR.app
-                /usr/bin/ditto "\(newApp.path)" /Applications/StreamDVR.app
+                rm -rf /Applications/StreamDVR.app || { echo "rm /Applications/StreamDVR.app failed ($?)"; exit 1; }
+                /usr/bin/ditto "\(newApp.path)" /Applications/StreamDVR.app || { echo "ditto failed ($?)"; exit 1; }
+                echo "installed, relaunching"
                 /usr/bin/open /Applications/StreamDVR.app
                 rm -rf "\(tempBase.path)"
-                rm -f "\(scriptURL.path)"
+                echo "done"
                 """
                 try script.write(toFile: scriptURL.path, atomically: true, encoding: .utf8)
                 let chmod = Process()
