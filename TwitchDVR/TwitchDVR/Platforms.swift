@@ -287,27 +287,66 @@ struct KickProvider: ChannelProvider {
 
     func getStatus(login: String) async throws -> ChannelStatus? {
         guard let json = try await fetchChannel(login: login) else { return nil }
-        let live = json["livestream"] as? [String: Any]
+        let liveObject = json["livestream"] as? [String: Any]
+        let playbackURL = json["playback_url"] as? String ?? ""
+        var live = liveObject != nil
+        if !live {
+            live = await playbackIsLive(playbackURL: playbackURL)
+        }
+        let displayName = Self.displayName(from: json) ?? login
         return ChannelStatus(
-            isLive: live != nil,
-            title: live?["session_title"] as? String ?? "",
-            game: Self.categoryName(from: live ?? [:]),
+            isLive: live,
+            title: liveObject?["session_title"] as? String ?? (live ? displayName : ""),
+            game: Self.categoryName(from: liveObject ?? [:]),
             profileImageURL: Self.profilePic(from: json)
         )
     }
 
     func getStreamInfo(login: String) async throws -> StreamInfo? {
-        guard let json = try await fetchChannel(login: login),
-              let live = json["livestream"] as? [String: Any] else { return nil }
+        guard let json = try await fetchChannel(login: login) else { return nil }
+        if let live = json["livestream"] as? [String: Any] {
+            return StreamInfo(
+                title: live["session_title"] as? String ?? "Live stream",
+                game: Self.categoryName(from: live),
+                viewerCount: live["viewer_count"] as? Int ?? 0,
+                thumbnailURL: "",
+                streamM3U8: "",
+                accessToken: nil,
+                profileImageURL: Self.profilePic(from: json)
+            )
+        }
+        let playbackURL = json["playback_url"] as? String ?? ""
+        guard await playbackIsLive(playbackURL: playbackURL) else { return nil }
         return StreamInfo(
-            title: live["session_title"] as? String ?? "Live stream",
-            game: Self.categoryName(from: live),
-            viewerCount: live["viewer_count"] as? Int ?? 0,
+            title: Self.displayName(from: json) ?? login,
+            game: "",
+            viewerCount: 0,
             thumbnailURL: "",
             streamM3U8: "",
             accessToken: nil,
             profileImageURL: Self.profilePic(from: json)
         )
+    }
+
+    /// Reliable live fallback for when the channels endpoint omits `livestream`
+    /// (that happens for unauthenticated requests). Probing the playback HLS master
+    /// playlist is authoritative and the playback service isn't behind Cloudflare:
+    /// live channels serve an EXT-X master playlist, offline channels return 404.
+    private func playbackIsLive(playbackURL: String?) async -> Bool {
+        guard let raw = playbackURL,
+              raw.hasPrefix("http://") || raw.hasPrefix("https://"),
+              let url = URL(string: raw) else { return false }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
+        request.setValue(
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36",
+            forHTTPHeaderField: "User-Agent")
+        guard let (data, response) = try? await KickSession.httpSession.data(for: request),
+              let http = response as? HTTPURLResponse, http.statusCode == 200 else { return false }
+        let body = String(data: data, encoding: .utf8) ?? ""
+        return body.contains("EXT-X-STREAM-INF")
+            || body.contains("EXT-X-MEDIA")
+            || body.contains("EXTINF")
     }
 
     /// Channel JSON from the public API. `nil` only when the channel doesn't exist;

@@ -136,16 +136,19 @@ public static class PlatformProvider
             {
                 var json = await FetchKickChannelAsync(login);
                 if (json == null) return null;
-                var live = json.TryGetValue("livestream", out var l) && l.ValueKind == JsonValueKind.Object;
+                var hasLive = json.TryGetValue("livestream", out var l) && l.ValueKind == JsonValueKind.Object;
+                var playbackUrl = KickPlaybackUrl(json);
+                var live = hasLive || await KickPlaybackIsLiveAsync(playbackUrl);
+                var displayName = KickParse.DisplayName(json) ?? login;
                 return new ChannelStatus
                 {
                     Id = $"kick:{login}",
                     Login = login,
-                    DisplayName = KickParse.DisplayName(json) ?? login,
+                    DisplayName = displayName,
                     ProfileImageURL = KickParse.ProfilePic(json),
                     IsLive = live,
-                    Title = live && l.TryGetProperty("session_title", out var t) ? t.GetString() ?? "" : "",
-                    Game = live ? KickParse.CategoryName(l) : ""
+                    Title = hasLive && l.TryGetProperty("session_title", out var t) ? t.GetString() ?? "" : (live ? displayName : ""),
+                    Game = hasLive ? KickParse.CategoryName(l) : ""
                 };
             }
         }
@@ -179,13 +182,25 @@ public static class PlatformProvider
             default:
             {
                 var json = await FetchKickChannelAsync(login);
-                if (json == null || !json.TryGetValue("livestream", out var live) ||
-                    live.ValueKind != JsonValueKind.Object) return null;
+                if (json == null) return null;
+                if (json.TryGetValue("livestream", out var live) && live.ValueKind == JsonValueKind.Object)
+                {
+                    return new StreamInfo
+                    {
+                        Title = live.TryGetProperty("session_title", out var title) ? title.GetString() ?? "Live stream" : "Live stream",
+                        Game = KickParse.CategoryName(live),
+                        ViewerCount = live.TryGetProperty("viewer_count", out var vc) && vc.ValueKind == JsonValueKind.Number ? vc.GetInt32() : 0,
+                        StreamM3U8 = "",
+                        ProfileImageUrl = KickParse.ProfilePic(json)
+                    };
+                }
+                var playbackUrl = KickPlaybackUrl(json);
+                if (!await KickPlaybackIsLiveAsync(playbackUrl)) return null;
                 return new StreamInfo
                 {
-                    Title = live.TryGetProperty("session_title", out var title) ? title.GetString() ?? "Live stream" : "Live stream",
-                    Game = KickParse.CategoryName(live),
-                    ViewerCount = live.TryGetProperty("viewer_count", out var vc) && vc.ValueKind == JsonValueKind.Number ? vc.GetInt32() : 0,
+                    Title = KickParse.DisplayName(json) ?? login,
+                    Game = "",
+                    ViewerCount = 0,
                     StreamM3U8 = "",
                     ProfileImageUrl = KickParse.ProfilePic(json)
                 };
@@ -312,6 +327,41 @@ public static class PlatformProvider
     }
 
     // ---- Kick ----
+
+    private static string KickPlaybackUrl(Dictionary<string, JsonElement> json)
+        => json.TryGetValue("playback_url", out var pu) && pu.ValueKind == JsonValueKind.String
+            ? pu.GetString() ?? ""
+            : "";
+
+    /// <summary>
+    /// Reliable live fallback for when the channels endpoint omits `livestream`
+    /// (that happens for unauthenticated requests). Probing the playback HLS master
+    /// playlist is authoritative and the playback service isn't behind Cloudflare:
+    /// live channels serve an EXT-X master playlist, offline channels return 404.
+    /// </summary>
+    private static async Task<bool> KickPlaybackIsLiveAsync(string? playbackUrl)
+    {
+        if (string.IsNullOrEmpty(playbackUrl) ||
+            !playbackUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+            !playbackUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, playbackUrl);
+            request.Headers.TryAddWithoutValidation("User-Agent", ChromeUserAgent);
+            using var response = await Http.SendAsync(request);
+            if (response.StatusCode != System.Net.HttpStatusCode.OK) return false;
+            var body = await response.Content.ReadAsStringAsync();
+            return body.Contains("EXT-X-STREAM-INF", StringComparison.OrdinalIgnoreCase) ||
+                   body.Contains("EXT-X-MEDIA", StringComparison.OrdinalIgnoreCase) ||
+                   body.Contains("EXTINF", StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
     /// <summary>Channel JSON from the public API. Null only when the channel doesn't exist;
     /// rate-limited / server errors throw so the channel isn't dropped as offline.</summary>

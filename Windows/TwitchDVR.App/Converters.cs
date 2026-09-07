@@ -28,6 +28,15 @@ public class BoolRedConverter : IValueConverter
         => throw new NotSupportedException();
 }
 
+public class BoolToRecordButtonTextConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => (value is true) ? "Stop" : "Record";
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
 public class ErrorRedConverter : IValueConverter
 {
     private static readonly SolidColorBrush Red = new(Colors.Red);
