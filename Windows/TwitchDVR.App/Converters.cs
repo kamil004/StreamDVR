@@ -95,3 +95,27 @@ public class PlatformColorConverter : IValueConverter
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         => throw new NotSupportedException();
 }
+
+public class SuccessGreenConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => (value is true) ? new SolidColorBrush(Color.FromRgb(0x2E, 0xA0, 0x43)) : new SolidColorBrush(Colors.Black);
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+public class LogForegroundConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is not LogEntry entry) return Colors.Black;
+        if (entry.IsError) return new SolidColorBrush(Colors.Red);
+        if (entry.IsSuccess) return new SolidColorBrush(Color.FromRgb(0x2E, 0xA0, 0x43));
+        if (entry.IsWarning) return new SolidColorBrush(Color.FromRgb(0xD4, 0x8A, 0x00));
+        return new SolidColorBrush(Colors.Black);
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}

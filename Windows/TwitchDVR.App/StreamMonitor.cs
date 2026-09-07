@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Windows;
@@ -15,6 +16,13 @@ public class LogEntry
     public string Message { get; set; } = "";
     public bool IsError { get; set; }
     public bool IsSuccess { get; set; }
+    public bool IsWarning { get; set; }
+    public string Icon => IsError ? "✕" : IsSuccess ? "✓" : IsWarning ? "⚠" : "ℹ";
+    public System.Windows.Media.Brush Foreground =>
+        IsError ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Red) :
+        IsSuccess ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x2E, 0xA0, 0x43)) :
+        IsWarning ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xD4, 0x8A, 0x00)) :
+        new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Black);
 }
 
 public class FileItem
@@ -51,6 +59,7 @@ public class StreamMonitor : INotifyPropertyChanged
 
     readonly Dictionary<string, StreamRecorderResult> _recorders = new();
     CancellationTokenSource? _cts;
+    static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(30) };
 
     public StreamMonitor()
     {
@@ -58,6 +67,9 @@ public class StreamMonitor : INotifyPropertyChanged
 
         var savedDir = ConfigStore.Load("twitch_output_dir");
         if (!string.IsNullOrEmpty(savedDir)) _outputDirectory = savedDir;
+
+        _autoSortLive = ConfigStore.Load("auto_sort_live") == "1";
+        _preventSleep = ConfigStore.Load("prevent_sleep") == "1";
 
         IsLoggedIn = TwitchApi.IsLoggedIn;
         Username = TwitchApi.Username ?? "";
@@ -77,6 +89,8 @@ public class StreamMonitor : INotifyPropertyChanged
             if (ok) AddLog("All dependencies ready", isSuccess: true);
             else AddLog("Some dependencies missing — recording may not work", isError: true);
         });
+
+        CheckForUpdate();
     }
 
     public void RefreshRecordings()
@@ -154,6 +168,35 @@ public class StreamMonitor : INotifyPropertyChanged
     string _headerStatus = "Waiting for start";
     public string HeaderStatus { get => _headerStatus; set { _headerStatus = value; OnPropertyChanged(); } }
 
+    bool _autoSortLive;
+    public bool AutoSortLive { get => _autoSortLive; set { _autoSortLive = value; OnPropertyChanged(); ConfigStore.Save("auto_sort_live", value ? "1" : "0"); } }
+
+    bool _preventSleep;
+    public bool PreventSleep { get => _preventSleep; set { _preventSleep = value; OnPropertyChanged(); ConfigStore.Save("prevent_sleep", value ? "1" : "0"); SyncSleepPrevention(); } }
+
+    UpdateCheckState _updateState = UpdateCheckState.Idle;
+    public UpdateCheckState UpdateState { get => _updateState; set { _updateState = value; OnPropertyChanged(); OnPropertyChanged(nameof(UpdateStatusText)); OnPropertyChanged(nameof(HasUpdate)); } }
+
+    UpdateInfo? _pendingUpdate;
+    public UpdateInfo? PendingUpdate { get => _pendingUpdate; set { _pendingUpdate = value; OnPropertyChanged(); } }
+
+    public bool HasUpdate => UpdateState == UpdateCheckState.UpdateAvailable;
+    public string UpdateStatusText => UpdateState switch
+    {
+        UpdateCheckState.Checking => "Checking...",
+        UpdateCheckState.UpToDate => "Up to date",
+        UpdateCheckState.UpdateAvailable => $"Update v{PendingUpdate?.Version} available",
+        UpdateCheckState.Downloading => "Downloading...",
+        UpdateCheckState.Error => "Update check failed",
+        _ => ""
+    };
+
+    int _onlineCount;
+    public int OnlineCount { get => _onlineCount; set { _onlineCount = value; OnPropertyChanged(); } }
+
+    public int OfflineCount => Channels.Count - OnlineCount;
+    public int RecordingCount => _recorders.Count;
+
     public async Task RefreshLoginAsync()
     {
         await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
@@ -163,42 +206,72 @@ public class StreamMonitor : INotifyPropertyChanged
         });
     }
 
-    public void AddChannel(string rawInput)
+    public void AddChannel(string rawInput, StreamPlatform defaultPlatform = StreamPlatform.Twitch)
     {
         var parsed = PlatformProvider.ParseInput(rawInput);
         if (parsed == null)
         {
-            AddLog("Could not parse channel input", isError: true);
+            // No URL detected — use the selected platform from the picker
+            var login = rawInput.Trim().ToLowerInvariant().Trim('/');
+            if (string.IsNullOrEmpty(login)) { AddLog("Could not parse channel input", isError: true); return; }
+            var id = $"{defaultPlatform.Slug()}:{login}";
+            if (Channels.Any(c => c.Channel.Id == id))
+            {
+                AddLog($"Channel {login} is already tracked", isError: true);
+                return;
+            }
+            var item = new ChannelItem
+            {
+                Channel = new StreamChannel { Id = id, Login = login, DisplayName = login, Platform = defaultPlatform }
+            };
+            Channels.Add(item);
+            SaveChannels();
+            AddLog($"Added {defaultPlatform.DisplayName()} channel: {login}", isSuccess: true);
+            _ = RefreshChannelAsync(item);
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var resolved = await PlatformProvider.ResolveChannelAsync(defaultPlatform, login);
+                    await UiAsync(() =>
+                    {
+                        if (resolved == null) return;
+                        item.Channel.DisplayName = resolved.DisplayName;
+                        item.Channel.ProfileImageUrl = resolved.ProfileImageUrl;
+                    });
+                }
+                catch { }
+            });
             return;
         }
 
-        var (platform, login) = parsed.Value;
-        var id = $"{platform.Slug()}:{login}";
-        if (Channels.Any(c => c.Channel.Id == id))
+        var (platform, loginFromUrl) = parsed.Value;
+        var urlId = $"{platform.Slug()}:{loginFromUrl}";
+        if (Channels.Any(c => c.Channel.Id == urlId))
         {
-            AddLog($"Channel {login} is already tracked", isError: true);
+            AddLog($"Channel {loginFromUrl} is already tracked", isError: true);
             return;
         }
 
-        var item = new ChannelItem
+        var urlItem = new ChannelItem
         {
-            Channel = new StreamChannel { Id = id, Login = login, DisplayName = login, Platform = platform }
+            Channel = new StreamChannel { Id = urlId, Login = loginFromUrl, DisplayName = loginFromUrl, Platform = platform }
         };
-        Channels.Add(item);
+        Channels.Add(urlItem);
         SaveChannels();
-        AddLog($"Added {platform.DisplayName()} channel: {login}", isSuccess: true);
+        AddLog($"Added {platform.DisplayName()} channel: {loginFromUrl}", isSuccess: true);
 
-        _ = RefreshChannelAsync(item);
+        _ = RefreshChannelAsync(urlItem);
         _ = Task.Run(async () =>
         {
             try
             {
-                var resolved = await PlatformProvider.ResolveChannelAsync(platform, login);
+                var resolved = await PlatformProvider.ResolveChannelAsync(platform, loginFromUrl);
                 await UiAsync(() =>
                 {
                     if (resolved == null) return;
-                    item.Channel.DisplayName = resolved.DisplayName;
-                    item.Channel.ProfileImageUrl = resolved.ProfileImageUrl;
+                    urlItem.Channel.DisplayName = resolved.DisplayName;
+                    urlItem.Channel.ProfileImageUrl = resolved.ProfileImageUrl;
                 });
             }
             catch
@@ -220,6 +293,7 @@ public class StreamMonitor : INotifyPropertyChanged
         if (IsMonitoring) return;
         IsMonitoring = true;
         HeaderStatus = "Monitoring channels...";
+        SyncSleepPrevention();
         AddLog($"Started monitoring {Channels.Count} channels", isSuccess: true);
     }
 
@@ -227,6 +301,7 @@ public class StreamMonitor : INotifyPropertyChanged
     {
         IsMonitoring = false;
         HeaderStatus = "Waiting for start";
+        SyncSleepPrevention();
         AddLog("Stopped monitoring");
     }
 
@@ -521,6 +596,9 @@ public class StreamMonitor : INotifyPropertyChanged
                 item.Channel.CurrentGame = status.IsLive ? status.Game : "";
             });
 
+            var wasLive = !string.IsNullOrEmpty(item.Channel.CurrentStreamTitle);
+            if (status != null) OnlineCount = Channels.Count(c => !string.IsNullOrEmpty(c.Channel.CurrentStreamTitle));
+
             if (status != null && status.IsLive && IsMonitoring && !_recorders.ContainsKey(channel.Id))
             {
                 AddLog($"Stream went live: {channel.Login} - starting auto recording", isSuccess: true);
@@ -538,6 +616,7 @@ public class StreamMonitor : INotifyPropertyChanged
                     item.StatsText = "";
                     OnPropertyChanged(nameof(HasActiveRecordings));
                     OnPropertyChanged(nameof(ActiveRecordingCount));
+                    OnPropertyChanged(nameof(RecordingCount));
                 });
             }
         }
@@ -624,14 +703,15 @@ public class StreamMonitor : INotifyPropertyChanged
         return dir;
     }
 
-    public void AddLog(string message, bool isError = false, bool isSuccess = false)
+    public void AddLog(string message, bool isError = false, bool isSuccess = false, bool isWarning = false)
     {
         var entry = new LogEntry
         {
             Timestamp = DateTime.Now,
             Message = message,
             IsError = isError,
-            IsSuccess = isSuccess
+            IsSuccess = isSuccess,
+            IsWarning = isWarning
         };
         Application.Current.Dispatcher.BeginInvoke(() =>
         {
@@ -676,6 +756,125 @@ public class StreamMonitor : INotifyPropertyChanged
         await UiAsync(() =>
         {
             if (IsKickLoggedIn && !string.IsNullOrEmpty(name)) KickUsername = name;
+        });
+    }
+
+    // ---- Sleep prevention ----
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    static extern uint SetThreadExecutionState(uint esFlags);
+
+    const uint ES_CONTINUOUS = 0x80000000;
+    const uint ES_SYSTEM_REQUIRED = 0x00000001;
+
+    void SyncSleepPrevention()
+    {
+        if (IsMonitoring && PreventSleep)
+            SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED);
+        else
+            SetThreadExecutionState(ES_CONTINUOUS);
+    }
+
+    // ---- Update system ----
+
+    public void CheckForUpdate()
+    {
+        if (UpdateState == UpdateCheckState.Checking) return;
+        UpdateState = UpdateCheckState.Checking;
+        _ = Task.Run(async () =>
+        {
+            var current = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+            var currentStr = current != null ? $"{current.Major}.{current.Minor}.{current.Build}" : "0";
+            var latest = await UpdateChecker.FetchLatestAsync();
+            if (latest == null)
+            {
+                await UiAsync(() => UpdateState = UpdateCheckState.Error);
+                return;
+            }
+            if (UpdateChecker.CompareVersions(latest.Version, currentStr) > 0)
+            {
+                await UiAsync(() =>
+                {
+                    PendingUpdate = latest;
+                    UpdateState = UpdateCheckState.UpdateAvailable;
+                    AddLog($"Update available: v{latest.Version}");
+                });
+            }
+            else
+            {
+                await UiAsync(() => UpdateState = UpdateCheckState.UpToDate);
+            }
+        });
+    }
+
+    public void DownloadAndInstallUpdate()
+    {
+        if (PendingUpdate == null || UpdateState != UpdateCheckState.UpdateAvailable) return;
+        var info = PendingUpdate;
+        UpdateState = UpdateCheckState.Downloading;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var tempDir = Path.Combine(Path.GetTempPath(), "TwitchDVR-Updater");
+                if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+                Directory.CreateDirectory(tempDir);
+
+                var zipPath = Path.Combine(tempDir, "update.zip");
+                using (var response = await Http.GetAsync(info.AssetUrl))
+                {
+                    response.EnsureSuccessStatusCode();
+                    await using var fs = File.Create(zipPath);
+                    await response.Content.CopyToAsync(fs);
+                }
+
+                System.IO.Compression.ZipFile.ExtractToDirectory(zipPath, tempDir, true);
+                File.Delete(zipPath);
+
+                var newExe = Directory.GetFiles(tempDir, "TwitchDVR.exe", SearchOption.AllDirectories).FirstOrDefault();
+                if (newExe == null)
+                {
+                    await UiAsync(() => { UpdateState = UpdateCheckState.Error; AddLog("Update archive missing TwitchDVR.exe", isError: true); });
+                    return;
+                }
+
+                var currentExe = Environment.ProcessPath;
+                var batPath = Path.Combine(tempDir, "install.bat");
+                var bat = $@"@echo off
+:loop
+tasklist /FI ""IMAGENAME eq TwitchDVR.exe"" | find /I ""TwitchDVR.exe"" >NUL
+if %ERRORLEVEL%==0 (timeout /t 1 >NUL & goto loop)
+copy /Y ""{newExe}"" ""{currentExe}""
+start """" ""{currentExe}""
+del /Q ""{batPath}""
+rmdir /S /Q ""{tempDir}""
+";
+                File.WriteAllText(batPath, bat);
+
+                await UiAsync(() =>
+                {
+                    AddLog($"Update v{info.Version} downloaded — restarting", isSuccess: true);
+                    UpdateState = UpdateCheckState.Idle;
+                });
+
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = batPath,
+                    UseShellExecute = true,
+                    CreateNoWindow = true
+                });
+
+                await Task.Delay(500);
+                await UiAsync(() => Application.Current.Shutdown());
+            }
+            catch (Exception ex)
+            {
+                await UiAsync(() =>
+                {
+                    AddLog($"Update failed: {ex.Message}", isError: true);
+                    UpdateState = UpdateCheckState.Error;
+                });
+            }
         });
     }
 

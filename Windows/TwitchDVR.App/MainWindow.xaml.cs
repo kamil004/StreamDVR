@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
@@ -13,6 +14,9 @@ namespace TwitchDVR.App;
 public partial class MainWindow : Window
 {
     StreamMonitor Monitor => App.Monitor!;
+
+    Point _dragStart;
+    bool _isDragging;
 
     public MainWindow()
     {
@@ -32,13 +36,17 @@ public partial class MainWindow : Window
                 UpdateKickLogin();
             if (e.PropertyName is nameof(StreamMonitor.HasActiveRecordings) or nameof(StreamMonitor.ActiveRecordingCount))
                 UpdateTaskbarBadge();
+            if (e.PropertyName is nameof(StreamMonitor.HasUpdate))
+                UpdateUpdateButton();
+            if (e.PropertyName is nameof(StreamMonitor.UpdateState))
+                UpdateUpdateStatus();
         };
     }
 
     void SetVersionTitle()
     {
         var version = Assembly.GetExecutingAssembly().GetName().Version;
-        Title = version == null ? "TwitchDVR" : $"TwitchDVR {version.Major}.{version.Minor}.{version.Build}";
+        Title = version == null ? "StreamDVR" : $"StreamDVR {version.Major}.{version.Minor}.{version.Build}";
     }
 
     void UpdateTaskbarBadge()
@@ -115,6 +123,24 @@ public partial class MainWindow : Window
             : "Waiting for start";
     }
 
+    void UpdateUpdateButton()
+    {
+        UpdateButton.Visibility = Monitor.HasUpdate ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    void UpdateUpdateStatus()
+    {
+        UpdateStatusText!.Text = Monitor.UpdateStatusText;
+        DownloadUpdateButton.Visibility = Monitor.HasUpdate ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    StreamPlatform SelectedPlatform()
+    {
+        if (PlatformPicker?.SelectedItem is ComboBoxItem item && item.Tag is string tag)
+            return StreamPlatformExtensions.FromSlug(tag);
+        return StreamPlatform.Twitch;
+    }
+
     void OnLoginToggle(object sender, RoutedEventArgs e)
     {
         if (Monitor.IsLoggedIn)
@@ -142,7 +168,7 @@ public partial class MainWindow : Window
     {
         var text = ChannelInput!.Text;
         if (string.IsNullOrWhiteSpace(text)) return;
-        Monitor.AddChannel(text);
+        Monitor.AddChannel(text, SelectedPlatform());
         ChannelInput.Text = "";
     }
 
@@ -157,7 +183,6 @@ public partial class MainWindow : Window
     {
         if (sender is not FrameworkElement fe) return;
         var item = (ChannelItem)fe.DataContext;
-        // IsChecked (and thus IsActive) is already true when checked.
         if (item.IsActive) Monitor.StartRecording(item.Channel.Id);
         else Monitor.StopRecording(item.Channel.Id);
     }
@@ -244,6 +269,125 @@ public partial class MainWindow : Window
         {
             Monitor.OutputDirectory = dialog.FolderName;
             ConfigStore.Save("twitch_output_dir", Monitor.OutputDirectory);
+        }
+    }
+
+    // ---- Update system ----
+
+    void OnCheckForUpdate(object sender, RoutedEventArgs e) => Monitor.CheckForUpdate();
+    void OnDownloadUpdate(object sender, RoutedEventArgs e) => Monitor.DownloadAndInstallUpdate();
+
+    // ---- Reveal in Explorer ----
+
+    void OnRevealRecording(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement fe) return;
+        var item = (FileItem)fe.DataContext;
+        var fullPath = Path.Combine(Monitor.OutputDirectory, item.Name);
+        if (File.Exists(fullPath))
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = $"/select,\"{fullPath}\"",
+                    UseShellExecute = true
+                });
+            }
+            catch
+            {
+                Monitor.AddLog("Could not reveal file", isError: true);
+            }
+        }
+    }
+
+    // ---- Drag-to-reorder channels ----
+
+    void OnChannelMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement fe)
+        {
+            _dragStart = e.GetPosition(null);
+            _isDragging = false;
+        }
+    }
+
+    void OnChannelMouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || _isDragging) return;
+        if (sender is not FrameworkElement fe) return;
+        var pos = e.GetPosition(null);
+        if (Math.Abs(pos.X - _dragStart.X) > SystemParameters.MinimumHorizontalDragDistance ||
+            Math.Abs(pos.Y - _dragStart.Y) > SystemParameters.MinimumVerticalDragDistance)
+        {
+            _isDragging = true;
+            var item = fe.DataContext as ChannelItem;
+            if (item != null)
+            {
+                var data = new DataObject("ChannelItem", item);
+                DragDrop.DoDragDrop(fe, data, DragDropEffects.Move);
+            }
+            _isDragging = false;
+        }
+    }
+
+    void OnChannelsDragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = e.Data.GetDataPresent("ChannelItem") ? DragDropEffects.Move : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    void OnChannelsDrop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent("ChannelItem")) return;
+        var draggedItem = e.Data.GetData("ChannelItem") as ChannelItem;
+        if (draggedItem == null) return;
+
+        var targetPos = e.GetPosition(ChannelsList);
+        var items = Monitor.Channels;
+        var oldIndex = items.IndexOf(draggedItem);
+        if (oldIndex < 0) return;
+
+        // Find the item closest to the drop position
+        int newIndex = items.Count - 1;
+        for (var i = 0; i < items.Count; i++)
+        {
+            var container = ChannelsList.ItemContainerGenerator.ContainerFromIndex(i) as FrameworkElement;
+            if (container == null) continue;
+            var bounds = VisualTreeHelper.GetDescendantBounds(container);
+            var point = container.TransformToAncestor(ChannelsList).Transform(new Point(0, 0));
+            if (targetPos.Y < point.Y + bounds.Height / 2)
+            {
+                newIndex = i;
+                break;
+            }
+        }
+
+        if (oldIndex != newIndex)
+        {
+            items.Move(oldIndex, newIndex);
+        }
+        e.Handled = true;
+    }
+
+    void OnWindowDragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    void OnWindowDrop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
+        var files = e.Data.GetData(DataFormats.FileDrop) as string[];
+        if (files == null) return;
+        foreach (var file in files)
+        {
+            if (Uri.TryCreate(file, UriKind.Absolute, out var uri))
+                Monitor.AddChannel(uri.ToString(), SelectedPlatform());
+            else
+                Monitor.AddChannel(Path.GetFileNameWithoutExtension(file), SelectedPlatform());
         }
     }
 }
