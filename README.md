@@ -6,10 +6,10 @@ automatically starts recording when a tracked channel goes live.
 
 ## Features
 
-- **Three platforms** — add a Twitch channel by name, or paste a URL:
-  - `https://www.twitch.tv/shroud`
-  - `https://kick.com/odablock`
-  - `https://chaturbate.com/sweetsweet__baby/` (incl. locale subdomains like `pl.`)
+- **Three platforms** — add a channel by name, or paste a URL:
+  - `https://www.twitch.tv/nick`
+  - `https://kick.com/nick`
+  - `https://chaturbate.com/channel name/` (incl. locale subdomains like `pl.`)
 - **Automatic recording** — starts as soon as a tracked channel goes live
 - **Maximum quality** — always the best available stream (`best`)
 - **Descriptive filenames** — `YYYY-MM-DD_StreamTitle_HH-MM-SS.ts`
