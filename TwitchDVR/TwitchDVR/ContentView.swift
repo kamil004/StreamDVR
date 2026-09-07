@@ -430,7 +430,6 @@ struct ChannelRowView: View {
     private func statsLine(_ info: RecordingStats) -> String {
         var parts: [String] = []
         parts.append(formattedSize(info.fileSize))
-        parts.append(String(format: "%.0f KB/s", info.transferKBps))
         if !info.resolution.isEmpty { parts.append(info.resolution) }
         if !info.bitrate.isEmpty { parts.append(info.bitrate) }
         return parts.joined(separator: " · ")
