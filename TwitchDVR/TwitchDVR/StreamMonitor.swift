@@ -30,6 +30,7 @@ class StreamMonitor: ObservableObject {
     @Published var autoSortLive: Bool = (ConfigStore.load(key: "auto_sort_live") ?? "0") == "1"
     @Published var checkUpdates: Bool = (ConfigStore.load(key: "check_updates") ?? "1") == "1"
     @Published var updateState: UpdateCheckState = .idle
+    @Published var installingDependencies = false
 
     /// Channels to display: when auto-sort is on, live channels first
     /// (stable — relative order within each group is preserved) without
@@ -120,6 +121,23 @@ class StreamMonitor: ObservableObject {
 
         if checkUpdates {
             checkForUpdate()
+        }
+
+        installingDependencies = true
+        Task.detached(priority: .userInitiated) { [weak self] in
+            DependencyInstaller.ensureAll { msg, level in
+                let entryLevel: LogEntry.Level
+                switch level {
+                case .info: entryLevel = .info
+                case .warning: entryLevel = .warning
+                case .error: entryLevel = .error
+                case .success: entryLevel = .success
+                }
+                DispatchQueue.main.async {
+                    self?.addLog(msg, level: entryLevel)
+                }
+            }
+            await MainActor.run { self?.installingDependencies = false }
         }
 
         // Always refresh channel status (online/offline + title) — immediately

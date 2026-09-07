@@ -626,6 +626,14 @@ struct StatusBarView: View {
                 EmptyView()
             }
 
+            if monitor.installingDependencies {
+                HStack(spacing: 5) {
+                    ProgressView().controlSize(.small)
+                    Text("Installing dependencies…")
+                        .foregroundColor(.secondary)
+                }
+            }
+
             if !appVersion.isEmpty {
                 Label("Version \(appVersion)", systemImage: "checkmark.seal.fill")
                     .foregroundColor(.green)

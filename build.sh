@@ -69,6 +69,7 @@ swiftc \
     "$SRC_DIR/StreamRecorder.swift" \
     "$SRC_DIR/SleepPreventer.swift" \
     "$SRC_DIR/UpdateChecker.swift" \
+    "$SRC_DIR/DependencyInstaller.swift" \
     "$SRC_DIR/TwitchLoginView.swift" \
     "$SRC_DIR/KickLoginView.swift" \
     "$SRC_DIR/ContentView.swift" \
