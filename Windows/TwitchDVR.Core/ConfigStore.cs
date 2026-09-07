@@ -3,14 +3,14 @@ using System.Text.Json;
 namespace TwitchDVR.Core;
 
 /// <summary>
-/// Plain-file settings store (JSON in %APPDATA%\TwitchDVR\settings.json).
+/// Plain-file settings store (JSON in %APPDATA%\StreamDVR\settings.json).
 /// Replaces the macOS Keychain approach.
 /// </summary>
 public static class ConfigStore
 {
     private static readonly string DirectoryPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "TwitchDVR");
+        "StreamDVR");
 
     private static readonly string FilePath = Path.Combine(DirectoryPath, "settings.json");
 

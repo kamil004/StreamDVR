@@ -11,7 +11,7 @@ public static class UpdateChecker
 {
     public const string RepoOwner = "kamil004";
     public const string RepoName = "StreamDVR";
-    public const string AssetPrefix = "TwitchDVR-Windows";
+    public const string AssetPrefix = "StreamDVR-Windows";
 
     static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(20) };
 
@@ -34,7 +34,7 @@ public static class UpdateChecker
     {
         using var request = new HttpRequestMessage(HttpMethod.Get,
             $"https://api.github.com/repos/{RepoOwner}/{RepoName}/releases");
-        request.Headers.TryAddWithoutValidation("User-Agent", "TwitchDVR/1.0 (Windows)");
+        request.Headers.TryAddWithoutValidation("User-Agent", "StreamDVR/1.0 (Windows)");
         try
         {
             var response = await Http.SendAsync(request);

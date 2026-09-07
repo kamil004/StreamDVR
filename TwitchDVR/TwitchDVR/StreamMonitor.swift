@@ -264,7 +264,7 @@ class StreamMonitor: ObservableObject {
             }
             if UpdateChecker.compare(latest.version, current) == .orderedDescending {
                 updateState = .updateAvailable(latest)
-                addLog("Update available: v\(latest.version)", level: .info)
+                addLog("Update available: \(latest.version)", level: .info)
             } else {
                 updateState = .upToDate(current: current, latest: latest.version)
             }

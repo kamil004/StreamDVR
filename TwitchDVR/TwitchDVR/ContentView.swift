@@ -589,6 +589,10 @@ struct StatusBarView: View {
         monitor.recordingStatuses.values.filter(\.isActive).count
     }
 
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+    }
+
     var body: some View {
         HStack(spacing: 16) {
             Label("\(monitor.channels.count) channels", systemImage: "list.bullet")
@@ -607,7 +611,7 @@ struct StatusBarView: View {
                 Button {
                     monitor.downloadAndInstallUpdate()
                 } label: {
-                    Label("Update v\(info.version) available", systemImage: "arrow.down.circle.fill")
+                    Label("Update \(info.version) available", systemImage: "arrow.down.circle.fill")
                         .foregroundColor(.blue)
                 }
                 .buttonStyle(.plain)
@@ -615,11 +619,16 @@ struct StatusBarView: View {
             case .downloading(let info):
                 HStack(spacing: 5) {
                     ProgressView().controlSize(.small)
-                    Text("Downloading v\(info.version)...")
+                    Text("Downloading \(info.version)...")
                         .foregroundColor(.secondary)
                 }
             default:
                 EmptyView()
+            }
+
+            if !appVersion.isEmpty {
+                Text("Version \(appVersion)")
+                    .foregroundColor(.secondary)
             }
         }
         .font(.caption)
@@ -805,7 +814,7 @@ struct SettingsView: View {
                 .foregroundColor(.green)
         case .updateAvailable(let info):
             VStack(alignment: .leading, spacing: 6) {
-                Label("Update v\(info.version) available", systemImage: "arrow.down.circle")
+                Label("Update \(info.version) available", systemImage: "arrow.down.circle")
                     .font(.caption)
                     .foregroundColor(.blue)
                 Button("Download & Restart") {

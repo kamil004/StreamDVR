@@ -10,7 +10,7 @@ public static class DependencyInstaller
 {
     private static readonly string DepsDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "TwitchDVR", "deps");
+        "StreamDVR", "deps");
 
     /// <summary>
     /// Checks for streamlink and ffprobe; attempts winget install for any that are

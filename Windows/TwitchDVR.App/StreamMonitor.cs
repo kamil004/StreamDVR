@@ -698,7 +698,7 @@ public class StreamMonitor : INotifyPropertyChanged
     public static string DefaultOutputDirectory()
     {
         var docs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        var dir = Path.Combine(docs, "TwitchDVR");
+        var dir = Path.Combine(docs, "StreamDVR");
         try { Directory.CreateDirectory(dir); } catch { }
         return dir;
     }
@@ -816,7 +816,7 @@ public class StreamMonitor : INotifyPropertyChanged
         {
             try
             {
-                var tempDir = Path.Combine(Path.GetTempPath(), "TwitchDVR-Updater");
+                var tempDir = Path.Combine(Path.GetTempPath(), "StreamDVR-Updater");
                 if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
                 Directory.CreateDirectory(tempDir);
 
@@ -831,10 +831,10 @@ public class StreamMonitor : INotifyPropertyChanged
                 System.IO.Compression.ZipFile.ExtractToDirectory(zipPath, tempDir, true);
                 File.Delete(zipPath);
 
-                var newExe = Directory.GetFiles(tempDir, "TwitchDVR.exe", SearchOption.AllDirectories).FirstOrDefault();
+                var newExe = Directory.GetFiles(tempDir, "StreamDVR.exe", SearchOption.AllDirectories).FirstOrDefault();
                 if (newExe == null)
                 {
-                    await UiAsync(() => { UpdateState = UpdateCheckState.Error; AddLog("Update archive missing TwitchDVR.exe", isError: true); });
+                    await UiAsync(() => { UpdateState = UpdateCheckState.Error; AddLog("Update archive missing StreamDVR.exe", isError: true); });
                     return;
                 }
 
@@ -842,7 +842,7 @@ public class StreamMonitor : INotifyPropertyChanged
                 var batPath = Path.Combine(tempDir, "install.bat");
                 var bat = $@"@echo off
 :loop
-tasklist /FI ""IMAGENAME eq TwitchDVR.exe"" | find /I ""TwitchDVR.exe"" >NUL
+tasklist /FI ""IMAGENAME eq StreamDVR.exe"" | find /I ""StreamDVR.exe"" >NUL
 if %ERRORLEVEL%==0 (timeout /t 1 >NUL & goto loop)
 copy /Y ""{newExe}"" ""{currentExe}""
 start """" ""{currentExe}""

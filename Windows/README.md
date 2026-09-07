@@ -1,4 +1,4 @@
-# TwitchDVR for Windows — build & run
+# StreamDVR for Windows — build & run
 
 A Windows WPF companion to the macOS app. Records **Twitch, Chaturbate and Kick**
 streams at maximum quality and auto-starts when a tracked channel goes live.
@@ -11,7 +11,7 @@ streams at maximum quality and auto-starts when a tracked channel goes live.
   - `https://chaturbate.com/channel name/` (works with locale subdomains, e.g. `pl.`)
 - **Automatic recording** — starts as soon as a tracked channel goes live (polled every 60 s)
 - **Descriptive filenames** — `YYYY-MM-DD_StreamTitle_HH-MM-SS.ts`
-- **Clean folder structure** — `Documents\TwitchDVR\<platform>\<login>\`, one subfolder per channel
+- **Clean folder structure** — `Documents\StreamDVR\<platform>\<login>\`, one subfolder per channel
 - **Twitch / Kick account login** (optional) — built-in WebView2 login windows capture your session
 - **Per-channel folder button** — open a channel's recording folder directly from its row
 
@@ -27,7 +27,7 @@ cd Windows
 dotnet build TwitchDVR.App/TwitchDVR.App.csproj -c Release
 ```
 
-Output: `TwitchDVR.App/bin/Release/net8.0-windows/TwitchDVR.exe`
+Output: `TwitchDVR.App/bin/Release/net8.0-windows/StreamDVR.exe`
 
 ## Build with Visual Studio
 
@@ -38,7 +38,7 @@ Output: `TwitchDVR.App/bin/Release/net8.0-windows/TwitchDVR.exe`
 ## One-shot build (auto-version, single-file exe + zip)
 
 `build.ps1` bumps the PATCH version (`Windows/version.txt`), publishes a self-contained
-single-file `TwitchDVR.exe` and zips it:
+single-file `StreamDVR.exe` and zips it:
 
 ```powershell
 cd Windows
@@ -46,8 +46,8 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1
 ```
 
 Output:
-- `TwitchDVR.App\bin\Release\net8.0-windows\win-x64\publish\TwitchDVR.exe`
-- `Windows\TwitchDVR-Windows.zip`
+- `TwitchDVR.App\bin\Release\net8.0-windows\win-x64\publish\StreamDVR.exe`
+- `Windows\StreamDVR-Windows.zip`
 
 It bundles the .NET 8 runtime and WebView2 loader — no .NET install needed. On first
 launch the app auto-installs missing `streamlink` and `ffmpeg` via `winget`.
@@ -59,20 +59,20 @@ launch the app auto-installs missing `streamlink` and `ffmpeg` via `winget`.
 2. In the **Channels** tab each row shows the platform badge (Twitch / Chaturbate / Kick),
    online status, stream title and a **📁** button that opens that channel's folder.
 3. The **Recordings** tab lists every file under the output directory
-   (`Documents\TwitchDVR` by default), grouped into `platform\login\` subfolders.
+   (`Documents\StreamDVR` by default), grouped into `platform\login\` subfolders.
 
 ## What gets stored
 
 All settings live in:
 
 ```
-%APPDATA%\TwitchDVR\settings.json
+%APPDATA%\StreamDVR\settings.json
 ```
 
 Keys: `channels` (JSON list incl. platform), `twitch_access_token` / `twitch_username`
 (Twitch web session), `kick_cookies` (Kick session cookie jar), `twitch_output_dir`.
 
-Recordings are saved to `%USERPROFILE%\Documents\TwitchDVR\` by default, in
+Recordings are saved to `%USERPROFILE%\Documents\StreamDVR\` by default, in
 `<platform>\<login>\` subfolders.
 
 ## Dependencies
@@ -93,4 +93,4 @@ Recordings are saved to `%USERPROFILE%\Documents\TwitchDVR\` by default, in
 - `streamlink.exe` and `ffprobe.exe` are discovered on PATH and in the common install
   locations. If not found, the relevant feature shows an error message.
 - The settings file contains your Twitch OAuth token and Kick session cookies in plain
-  text (no Windows Keychain to encrypt). Keep `%APPDATA%\TwitchDVR\settings.json` private.
+  text (no Windows Keychain to encrypt). Keep `%APPDATA%\StreamDVR\settings.json` private.
