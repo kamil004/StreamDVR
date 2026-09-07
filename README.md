@@ -4,6 +4,8 @@ Native **macOS** (Swift/AppKit) and **Windows** (WPF/.NET) apps for recording li
 streams at maximum quality. Supports **Twitch**, **Chaturbate** and **Kick**, and
 automatically starts recording when a tracked channel goes live.
 
+![StreamDVR screenshot](screenshot.jpg)
+
 ## Features
 
 ### Channel management
