@@ -28,6 +28,8 @@ class StreamMonitor: ObservableObject {
     @Published var showKickLogin = false
     @Published var preventSleep: Bool = (ConfigStore.load(key: "prevent_sleep") ?? "1") == "1"
     @Published var autoSortLive: Bool = (ConfigStore.load(key: "auto_sort_live") ?? "0") == "1"
+    @Published var checkUpdates: Bool = (ConfigStore.load(key: "check_updates") ?? "1") == "1"
+    @Published var updateState: UpdateCheckState = .idle
 
     /// Channels to display: when auto-sort is on, live channels first
     /// (stable — relative order within each group is preserved) without
@@ -115,6 +117,10 @@ class StreamMonitor: ObservableObject {
             loggedInUsername = await api.getUsername() ?? ""
         }
         refreshKickUsername()
+
+        if checkUpdates {
+            checkForUpdate()
+        }
 
         // Always refresh channel status (online/offline + title) — immediately
         // at launch and then every pollInterval, regardless of monitoring.
@@ -237,6 +243,94 @@ class StreamMonitor: ObservableObject {
 
     func saveAutoSortLive() {
         ConfigStore.save(key: "auto_sort_live", value: autoSortLive ? "1" : "0")
+    }
+
+    func saveUpdatePref() {
+        ConfigStore.save(key: "check_updates", value: checkUpdates ? "1" : "0")
+        if checkUpdates {
+            checkForUpdate()
+        }
+    }
+
+    func checkForUpdate() {
+        guard updateState != .checking else { return }
+        updateState = .checking
+        Task {
+            let current = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String)
+                ?? (Bundle.main.infoDictionary?["CFBundleVersion"] as? String) ?? "0"
+            guard let latest = await UpdateChecker.fetchLatest() else {
+                updateState = .error("Could not check for updates")
+                return
+            }
+            if UpdateChecker.compare(latest.version, current) == .orderedDescending {
+                updateState = .updateAvailable(latest)
+                addLog("Update available: v\(latest.version)", level: .info)
+            } else {
+                updateState = .upToDate(current: current, latest: latest.version)
+            }
+        }
+    }
+
+    /// Downloads the new build, then hands off to a detached installer script
+    /// that replaces the bundle once this app has quit and relaunches it.
+    func downloadAndInstallUpdate() {
+        guard case .updateAvailable(let info) = updateState else { return }
+        updateState = .downloading(info)
+        Task {
+            do {
+                let zip = try await UpdateChecker.download(info)
+                let tempDir = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("StreamDVR-Updater", isDirectory: true)
+                try? FileManager.default.removeItem(at: tempDir)
+                try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+                let ditto = Process()
+                ditto.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+                ditto.arguments = ["-x", "-k", zip.path, tempDir.path]
+                ditto.standardOutput = Pipe()
+                ditto.standardError = Pipe()
+                try ditto.run()
+                ditto.waitUntilExit()
+                try? FileManager.default.removeItem(at: zip)
+
+                let contents = try FileManager.default.contentsOfDirectory(at: tempDir, includingPropertiesForKeys: nil)
+                guard let newApp = contents.first(where: { $0.pathExtension == "app" }) else {
+                    throw NSError(domain: "StreamDVRUpdate", code: 2)
+                }
+
+                let scriptURL = tempDir.appendingPathComponent("install.sh")
+                let script = """
+                #!/bin/bash
+                while pgrep -x "StreamDVR" > /dev/null 2>&1; do sleep 0.5; done
+                sleep 1
+                rm -rf /Applications/StreamDVR.app
+                /usr/bin/ditto "\(newApp.path)" /Applications/StreamDVR.app
+                /usr/bin/open /Applications/StreamDVR.app
+                rm -rf "\(tempDir.path)"
+                """
+                try script.write(toFile: scriptURL.path, atomically: true, encoding: .utf8)
+                let chmod = Process()
+                chmod.executableURL = URL(fileURLWithPath: "/bin/chmod")
+                chmod.arguments = ["+x", scriptURL.path]
+                try chmod.run()
+                chmod.waitUntilExit()
+
+                let launcher = Process()
+                launcher.executableURL = URL(fileURLWithPath: "/bin/bash")
+                launcher.arguments = [scriptURL.path]
+                launcher.standardOutput = Pipe()
+                launcher.standardError = Pipe()
+                try launcher.run()
+
+                addLog("Update v\(info.version) downloaded — restarting", level: .success)
+                updateState = .idle
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    NSApp.terminate(nil)
+                }
+            } catch {
+                updateState = .error("Download failed")
+            }
+        }
     }
 
     private func syncSleepPrevention() {

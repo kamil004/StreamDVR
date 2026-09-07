@@ -701,6 +701,19 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Updates") {
+                Toggle("Check for updates on launch", isOn: $monitor.checkUpdates)
+                    .onChange(of: monitor.checkUpdates) { _ in
+                        monitor.saveUpdatePref()
+                    }
+                HStack(spacing: 8) {
+                    Button("Check now") {
+                        monitor.checkForUpdate()
+                    }
+                    updateStatusView
+                }
+            }
+
             Section("Channel List") {
                 Toggle("Auto sort — live channels to the top", isOn: $monitor.autoSortLive)
                     .onChange(of: monitor.autoSortLive) { _ in
@@ -754,6 +767,43 @@ struct SettingsView: View {
         if panel.runModal() == .OK, let url = panel.url {
             monitor.outputDirectory = url.path
             ConfigStore.save(key: "twitch_output_dir", value: url.path)
+        }
+    }
+
+    @ViewBuilder private var updateStatusView: some View {
+        switch monitor.updateState {
+        case .idle:
+            EmptyView()
+        case .checking:
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.small)
+                Text("Checking...").font(.caption).foregroundColor(.secondary)
+            }
+        case .upToDate(_, let latest):
+            Label("Up to date (v\(latest))", systemImage: "checkmark.seal.fill")
+                .font(.caption)
+                .foregroundColor(.green)
+        case .updateAvailable(let info):
+            VStack(alignment: .leading, spacing: 6) {
+                Label("Update v\(info.version) available", systemImage: "arrow.down.circle")
+                    .font(.caption)
+                    .foregroundColor(.blue)
+                Button("Download & Restart") {
+                    monitor.downloadAndInstallUpdate()
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.blue)
+                .controlSize(.small)
+            }
+        case .downloading(let info):
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.small)
+                Text("Downloading v\(info.version)...").font(.caption).foregroundColor(.secondary)
+            }
+        case .error(let message):
+            Label(message, systemImage: "exclamationmark.triangle")
+                .font(.caption)
+                .foregroundColor(.red)
         }
     }
 }
