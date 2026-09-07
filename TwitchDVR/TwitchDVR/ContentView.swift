@@ -627,8 +627,8 @@ struct StatusBarView: View {
             }
 
             if !appVersion.isEmpty {
-                Text("Version \(appVersion)")
-                    .foregroundColor(.secondary)
+                Label("Version \(appVersion)", systemImage: "checkmark.seal.fill")
+                    .foregroundColor(.green)
             }
         }
         .font(.caption)
@@ -694,7 +694,7 @@ struct SettingsView: View {
                 if monitor.isLoggedIn {
                     Label("Logged in as \(monitor.loggedInUsername.isEmpty ? "Twitch user" : monitor.loggedInUsername)", systemImage: "checkmark.seal.fill")
                         .foregroundColor(.green)
-                    Button("Log in with a different account") {
+                    Button("Log out of Twitch") {
                         monitor.openLoginView()
                     }
                 } else {
