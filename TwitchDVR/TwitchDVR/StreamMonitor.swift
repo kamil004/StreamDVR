@@ -279,26 +279,30 @@ class StreamMonitor: ObservableObject {
         Task {
             do {
                 let zip = try await UpdateChecker.download(info)
-                let tempDir = FileManager.default.temporaryDirectory
+                let tempBase = FileManager.default.temporaryDirectory
                     .appendingPathComponent("StreamDVR-Updater", isDirectory: true)
-                try? FileManager.default.removeItem(at: tempDir)
-                try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+                try? FileManager.default.removeItem(at: tempBase)
+                try FileManager.default.createDirectory(at: tempBase, withIntermediateDirectories: true)
 
                 let ditto = Process()
                 ditto.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-                ditto.arguments = ["-x", "-k", zip.path, tempDir.path]
+                ditto.arguments = ["-x", "-k", zip.path, tempBase.path]
                 ditto.standardOutput = Pipe()
                 ditto.standardError = Pipe()
                 try ditto.run()
                 ditto.waitUntilExit()
+                guard ditto.terminationStatus == 0 else {
+                    throw NSError(domain: "StreamDVRUpdate", code: 3,
+                                  userInfo: [NSLocalizedDescriptionKey: "Archive extraction failed (ditto exit \(ditto.terminationStatus))"])
+                }
                 try? FileManager.default.removeItem(at: zip)
 
-                let contents = try FileManager.default.contentsOfDirectory(at: tempDir, includingPropertiesForKeys: nil)
-                guard let newApp = contents.first(where: { $0.pathExtension == "app" }) else {
-                    throw NSError(domain: "StreamDVRUpdate", code: 2)
+                guard let newApp = Self.findAppBundle(in: tempBase) else {
+                    throw NSError(domain: "StreamDVRUpdate", code: 2,
+                                  userInfo: [NSLocalizedDescriptionKey: "Release archive does not contain a .app bundle"])
                 }
 
-                let scriptURL = tempDir.appendingPathComponent("install.sh")
+                let scriptURL = FileManager.default.temporaryDirectory.appendingPathComponent("streamdvr-install.sh")
                 let script = """
                 #!/bin/bash
                 while pgrep -x "StreamDVR" > /dev/null 2>&1; do sleep 0.5; done
@@ -306,7 +310,8 @@ class StreamMonitor: ObservableObject {
                 rm -rf /Applications/StreamDVR.app
                 /usr/bin/ditto "\(newApp.path)" /Applications/StreamDVR.app
                 /usr/bin/open /Applications/StreamDVR.app
-                rm -rf "\(tempDir.path)"
+                rm -rf "\(tempBase.path)"
+                rm -f "\(scriptURL.path)"
                 """
                 try script.write(toFile: scriptURL.path, atomically: true, encoding: .utf8)
                 let chmod = Process()
@@ -324,13 +329,28 @@ class StreamMonitor: ObservableObject {
 
                 addLog("Update v\(info.version) downloaded — restarting", level: .success)
                 updateState = .idle
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                     NSApp.terminate(nil)
                 }
             } catch {
-                updateState = .error("Download failed")
+                addLog("Update failed: \(error.localizedDescription)", level: .error)
+                updateState = .error("Download failed: \(error.localizedDescription)")
             }
         }
+    }
+
+    private static func findAppBundle(in dir: URL) -> URL? {
+        let fm = FileManager.default
+        if let items = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil),
+           let top = items.first(where: { $0.pathExtension == "app" }) {
+            return top
+        }
+        if let enumerator = fm.enumerator(at: dir, includingPropertiesForKeys: nil) {
+            for case let url as URL in enumerator where url.pathExtension == "app" {
+                return url
+            }
+        }
+        return nil
     }
 
     private func syncSleepPrevention() {

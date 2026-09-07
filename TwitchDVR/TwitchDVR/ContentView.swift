@@ -601,6 +601,26 @@ struct StatusBarView: View {
                 .foregroundColor(recordingCount > 0 ? .red : .secondary)
 
             Spacer()
+
+            switch monitor.updateState {
+            case .updateAvailable(let info):
+                Button {
+                    monitor.downloadAndInstallUpdate()
+                } label: {
+                    Label("Update v\(info.version) available", systemImage: "arrow.down.circle.fill")
+                        .foregroundColor(.blue)
+                }
+                .buttonStyle(.plain)
+                .help("Download and install the new version")
+            case .downloading(let info):
+                HStack(spacing: 5) {
+                    ProgressView().controlSize(.small)
+                    Text("Downloading v\(info.version)...")
+                        .foregroundColor(.secondary)
+                }
+            default:
+                EmptyView()
+            }
         }
         .font(.caption)
         .padding(.horizontal, 12)
