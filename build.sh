@@ -156,6 +156,12 @@ else
     echo "  ⚠️  No app icon found — using default icon"
 fi
 
+# Header logo (round PNG with transparent background) for the top-left corner
+if [ -f "$SCRIPT_DIR/streamdvricon.png" ]; then
+    cp "$SCRIPT_DIR/streamdvricon.png" "$RESOURCES_DIR/StreamDVRIcon.png"
+    echo "  ✓ Header icon embedded"
+fi
+
 # Sign to avoid Gatekeeper issues (ad-hoc)
 codesign --force --deep --sign - "$APP_DIR" 2>/dev/null || echo "  ⚠️  Signing skipped"
 

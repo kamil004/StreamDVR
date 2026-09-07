@@ -49,9 +49,17 @@ struct HeaderView: View {
 
     var body: some View {
         HStack {
-            Image(systemName: "video.fill")
-                .font(.system(size: 24))
-                .foregroundColor(.purple)
+            if let url = Bundle.main.url(forResource: "StreamDVRIcon", withExtension: "png"),
+               let icon = NSImage(contentsOf: url) {
+                Image(nsImage: icon)
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 34, height: 34)
+            } else {
+                Image(systemName: "video.fill")
+                    .font(.system(size: 24))
+                    .foregroundColor(.purple)
+            }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("StreamDVR")
