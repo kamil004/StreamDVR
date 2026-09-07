@@ -27,6 +27,17 @@ class StreamMonitor: ObservableObject {
     @Published var kickUsername = ""
     @Published var showKickLogin = false
     @Published var preventSleep: Bool = (ConfigStore.load(key: "prevent_sleep") ?? "1") == "1"
+    @Published var autoSortLive: Bool = (ConfigStore.load(key: "auto_sort_live") ?? "0") == "1"
+
+    /// Channels to display: when auto-sort is on, live channels first
+    /// (stable — relative order within each group is preserved) without
+    /// overwriting the user's manually-saved order.
+    var sortedChannels: [StreamChannel] {
+        guard autoSortLive else { return channels }
+        let live = channels.filter { !$0.currentStreamTitle.isEmpty }
+        let offline = channels.filter { $0.currentStreamTitle.isEmpty }
+        return live + offline
+    }
 
     private var statusTask: Task<Void, Never>?
     private var recorders: [String: StreamRecorder] = [:]
@@ -222,6 +233,10 @@ class StreamMonitor: ObservableObject {
     func savePreventSleep() {
         ConfigStore.save(key: "prevent_sleep", value: preventSleep ? "1" : "0")
         syncSleepPrevention()
+    }
+
+    func saveAutoSortLive() {
+        ConfigStore.save(key: "auto_sort_live", value: autoSortLive ? "1" : "0")
     }
 
     private func syncSleepPrevention() {

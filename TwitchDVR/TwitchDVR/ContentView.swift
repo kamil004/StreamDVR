@@ -194,7 +194,7 @@ struct ChannelListView: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        ForEach(monitor.channels) { channel in
+                        ForEach(monitor.sortedChannels) { channel in
                             HStack(spacing: 6) {
                                 Image(systemName: "line.3.horizontal")
                                     .font(.system(size: 14))
@@ -691,6 +691,16 @@ struct SettingsView: View {
                     .buttonStyle(.borderedProminent)
                     .tint(.green)
                 }
+            }
+
+            Section("Channel List") {
+                Toggle("Auto sort — live channels to the top", isOn: $monitor.autoSortLive)
+                    .onChange(of: monitor.autoSortLive) { _ in
+                        monitor.saveAutoSortLive()
+                    }
+                Text("Channels currently live move to the top of the list so they are easy to spot. Your manual order is kept and restored when this is off.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
             }
 
             Section("Recording Settings") {
