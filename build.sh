@@ -159,6 +159,31 @@ echo "  Open it by double-clicking in Finder, or run:"
 echo "      open \"$APP_DIR\""
 echo ""
 
+echo ""
+echo "[5/5] Pushing to GitHub (skip with SKIP_GIT_PUSH=1)..."
+
+if [ -z "$SKIP_GIT_PUSH" ]; then
+    if ! git -C "$SCRIPT_DIR" rev-parse --git-dir >/dev/null 2>&1; then
+        echo "  ⚠️  Not a git repository — skipping push"
+    else
+        git -C "$SCRIPT_DIR" add -A
+        if ! git -C "$SCRIPT_DIR" diff --cached --quiet; then
+            if git -C "$SCRIPT_DIR" commit -m "Build v${VERSION}" >/dev/null 2>&1; then
+                echo "  ✓ Committed changes (v${VERSION})"
+            else
+                echo "  ⚠️  Commit failed"
+            fi
+        fi
+        if git -C "$SCRIPT_DIR" push -q origin HEAD; then
+            echo "  ✓ Pushed to GitHub"
+        else
+            echo "  ⚠️  Push failed (network/auth/repo) — build is still OK"
+        fi
+    fi
+else
+    echo "  ✓ Skipped (SKIP_GIT_PUSH=1)"
+fi
+
 echo "  ====================================================="
 echo "  USAGE"
 echo "  ====================================================="
