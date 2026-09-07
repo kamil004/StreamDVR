@@ -47,7 +47,14 @@ public static class UpdateChecker
             using var doc = JsonDocument.Parse(json);
             if (doc.RootElement.ValueKind != JsonValueKind.Array) return null;
 
+            // Newest Windows release asset across ALL releases (mirrors the macOS
+            // updater). The version is parsed from the asset name, independent of
+            // the tag, so a release that sorts oddly (created_at ordering) can
+            // never shadow the real latest version.
             UpdateInfo? best = null;
+            var bestVersion = "";
+            var bestPublished = DateTime.MinValue;
+
             foreach (var release in doc.RootElement.EnumerateArray())
             {
                 if (!release.TryGetProperty("assets", out var assets)) continue;
@@ -63,14 +70,16 @@ public static class UpdateChecker
 
                     var version = StripV(name.Replace(AssetPrefix, "", StringComparison.OrdinalIgnoreCase)
                         .Replace(".zip", "", StringComparison.OrdinalIgnoreCase));
-                    var info = new UpdateInfo(version, tag, url, name);
-                    if (best == null || published > DateTime.MinValue)
+
+                    if (best == null
+                        || CompareVersions(version, bestVersion) > 0
+                        || (CompareVersions(version, bestVersion) == 0 && published > bestPublished))
                     {
-                        best = info;
-                        break;
+                        best = new UpdateInfo(version, tag, url, name);
+                        bestVersion = version;
+                        bestPublished = published;
                     }
                 }
-                if (best != null) break;
             }
             return best;
         }
