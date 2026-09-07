@@ -13,7 +13,7 @@ final class SleepPreventer {
         let result = IOPMAssertionCreateWithName(
             kIOPMAssertionTypeNoIdleSleep as CFString,
             IOPMAssertionLevel(kIOPMAssertionLevelOn),
-            "TwitchDVR is recording live streams" as CFString,
+            "StreamDVR is recording live streams" as CFString,
             &assertionID)
         if result == kIOReturnSuccess {
             isHeld = true

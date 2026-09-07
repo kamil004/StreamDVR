@@ -1,4 +1,4 @@
-# TwitchDVR
+# StreamDVR
 
 Native **macOS** (Swift/AppKit) and **Windows** (WPF/.NET) apps for recording live
 streams at maximum quality. Supports **Twitch**, **Chaturbate** and **Kick**, and
@@ -13,7 +13,7 @@ automatically starts recording when a tracked channel goes live.
 - **Automatic recording** — starts as soon as a tracked channel goes live
 - **Maximum quality** — always the best available stream (`best`)
 - **Descriptive filenames** — `YYYY-MM-DD_StreamTitle_HH-MM-SS.ts`
-- **Clean folder structure** — `TwitchDVR/<platform>/<login>/`, one subfolder per channel
+- **Clean folder structure** — `StreamDVR/<platform>/<login>/`, one subfolder per channel
 - **Optional Twitch & Kick login** — built-in browser windows capture your session
   (Twitch: ad-free for premium/Prime; Kick: session cookies forwarded to streamlink)
 - **Drag to reorder** channels (macOS)
@@ -23,8 +23,8 @@ automatically starts recording when a tracked channel goes live.
 ## macOS build
 
 ```bash
-./build.sh          # bumps version, builds to build/TwitchDVR.app, installs + launches
-open build/TwitchDVR.app
+./build.sh          # bumps version, builds to build/StreamDVR.app, installs + launches
+open build/StreamDVR.app
 ```
 
 - Requires macOS 13+, Xcode Command Line Tools and [streamlink](https://streamlink.github.io/) (`brew install streamlink`).
@@ -51,7 +51,7 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1              # auto-version
 
 ## Recording behavior
 
-- **Location** — `~/Documents/TwitchDVR/<platform>/<login>/` (macOS) or
+- **Location** — `~/Documents/StreamDVR/<platform>/<login>/` (macOS) or
   `%USERPROFILE%\Documents\TwitchDVR\<platform>\<login>\` (Windows), changeable in Settings.
 - **Auto-start** — polled every ~60 s while monitoring; recording starts when live.
 - **Auto-stop** — file is finalized when the stream ends or you press Stop.

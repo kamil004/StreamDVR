@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-APP_NAME="TwitchDVR"
+APP_NAME="StreamDVR"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SRC_DIR="$SCRIPT_DIR/TwitchDVR/TwitchDVR"
 BUILD_DIR="$SCRIPT_DIR/build"
@@ -11,7 +11,7 @@ MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
 
 echo "================================================================"
-echo " TwitchDVR - macOS Stream Recorder"
+echo " StreamDVR - macOS Stream Recorder"
 echo "================================================================"
 echo ""
 
@@ -61,7 +61,7 @@ rm -rf "$BUILD_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 
 swiftc \
-    "$SRC_DIR/TwitchDVRApp.swift" \
+    "$SRC_DIR/StreamDVRApp.swift" \
     "$SRC_DIR/Platforms.swift" \
     "$SRC_DIR/KickSession.swift" \
     "$SRC_DIR/TwitchAPI.swift" \
@@ -94,6 +94,12 @@ else
 fi
 IFS='.' read -r MAJ MIN PAT <<< "$VERSION"
 PAT=$(( ${PAT:-0} + 1 ))
+# Cap patch at 15: when it would exceed, bump minor and reset patch
+# (e.g. 1.0.15 -> 1.1.0, 1.1.15 -> 1.2.0).
+if [ "$PAT" -gt 15 ]; then
+    MIN=$(( ${MIN:-0} + 1 ))
+    PAT=0
+fi
 VERSION="$MAJ.$MIN.$PAT"
 echo "$VERSION" > "$VERSION_FILE"
 echo "  ✓ Version incremented to $VERSION"
@@ -104,17 +110,17 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>TwitchDVR</string>
+    <string>StreamDVR</string>
     <key>CFBundleDisplayName</key>
-    <string>TwitchDVR</string>
+    <string>StreamDVR</string>
     <key>CFBundleIdentifier</key>
-    <string>com.twitchdvr.app</string>
+    <string>com.streamdvr.app</string>
     <key>CFBundleVersion</key>
     <string>${VERSION}</string>
     <key>CFBundleShortVersionString</key>
     <string>${VERSION}</string>
     <key>CFBundleExecutable</key>
-    <string>TwitchDVR</string>
+    <string>StreamDVR</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>LSMinimumSystemVersion</key>
@@ -140,11 +146,14 @@ PLIST
 echo "  ✓ Info.plist created"
 
 # Copy app icon if present
-if [ -f "$SCRIPT_DIR/twitchicon.icns" ]; then
+if [ -f "$SCRIPT_DIR/streamdvr.icns" ]; then
+    cp "$SCRIPT_DIR/streamdvr.icns" "$RESOURCES_DIR/AppIcon.icns"
+    echo "  ✓ App icon embedded (streamdvr.icns)"
+elif [ -f "$SCRIPT_DIR/twitchicon.icns" ]; then
     cp "$SCRIPT_DIR/twitchicon.icns" "$RESOURCES_DIR/AppIcon.icns"
     echo "  ✓ App icon embedded"
 else
-    echo "  ⚠️  No twitchicon.icns found — using default icon"
+    echo "  ⚠️  No app icon found — using default icon"
 fi
 
 # Sign to avoid Gatekeeper issues (ad-hoc)

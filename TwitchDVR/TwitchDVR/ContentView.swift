@@ -54,7 +54,7 @@ struct HeaderView: View {
                 .foregroundColor(.purple)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("TwitchDVR")
+                Text("StreamDVR")
                     .font(.title2.bold())
                 Text(monitor.isMonitoring ? "Monitoring channels..." : "Waiting for start")
                     .font(.caption)

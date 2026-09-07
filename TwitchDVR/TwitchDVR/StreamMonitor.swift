@@ -64,7 +64,7 @@ class StreamMonitor: ObservableObject {
 
     static func defaultOutputDirectory() -> String {
         let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
-        let dir = paths[0].appendingPathComponent("TwitchDVR")
+        let dir = paths[0].appendingPathComponent("StreamDVR")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.path
     }

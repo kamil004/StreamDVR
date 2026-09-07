@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct TwitchDVRApp: App {
+struct StreamDVRApp: App {
     @StateObject private var monitor = StreamMonitor()
 
     var body: some Scene {
