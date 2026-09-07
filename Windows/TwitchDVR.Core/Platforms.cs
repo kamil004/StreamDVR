@@ -36,13 +36,24 @@ public static class PlatformProvider
 
     /// <summary>
     /// Detects the platform from raw input and extracts the username. Accepts plain names
-    /// (Twitch default) or URLs like https://www.twitch.tv/shroud,
-    /// https://pl.chaturbate.com/sweetsweet__baby/, https://kick.com/odablock.
+    /// (platform left to the caller's picker — returns null) or URLs like
+    /// https://www.twitch.tv/shroud, https://pl.chaturbate.com/sweetsweet__baby/,
+    /// https://kick.com/odablock. Returns null for URLs without a recognizable host too.
     /// </summary>
     public static (StreamPlatform Platform, string Login)? ParseInput(string raw)
     {
         if (string.IsNullOrWhiteSpace(raw)) return null;
         var lower = raw.ToLowerInvariant();
+
+        // A bare name carries no platform info — return null so the UI's platform
+        // picker decides (mirrors the macOS edition).
+        var looksLikeUrl = raw.Contains("://") ||
+                           lower.Contains("twitch.tv") ||
+                           lower.Contains("chaturbate") ||
+                           lower.Contains("kick.com") ||
+                           lower.Contains("kick.tv");
+        if (!looksLikeUrl) return null;
+
         var platform = StreamPlatform.Twitch;
         if (lower.Contains("chaturbate")) platform = StreamPlatform.Chaturbate;
         else if (lower.Contains("kick.com") || lower.Contains("kick.tv")) platform = StreamPlatform.Kick;

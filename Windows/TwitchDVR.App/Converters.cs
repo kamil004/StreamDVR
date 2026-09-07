@@ -75,6 +75,27 @@ public class EmptyToImageSourceConverter : IValueConverter
         => throw new NotSupportedException();
 }
 
+public class TitleToStatusBrushConverter : IValueConverter
+{
+    private static readonly SolidColorBrush Live = new(Color.FromRgb(0x2E, 0xA0, 0x43));
+    private static readonly SolidColorBrush Offline = new(Colors.Gray);
+
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => string.IsNullOrEmpty(value as string) ? Offline : Live;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+public class TitleToStatusTextConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => string.IsNullOrEmpty(value as string) ? "Offline" : "Online";
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
 public class PlatformNameConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)

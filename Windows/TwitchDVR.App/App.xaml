@@ -25,6 +25,10 @@
         <local:PlatformNameConverter x:Key="PlatformNameConverter" />
         <local:PlatformColorConverter x:Key="PlatformColorConverter" />
 
+        <!-- live/offline status dot -->
+        <local:TitleToStatusBrushConverter x:Key="TitleToStatusBrushConverter" />
+        <local:TitleToStatusTextConverter x:Key="TitleToStatusTextConverter" />
+
         <!-- Accent outline button -->
         <Style x:Key="AccentButton" TargetType="Button">
             <Setter Property="Foreground" Value="White" />

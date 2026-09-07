@@ -163,12 +163,15 @@
                                             <StackPanel Grid.Column="2">
                                                 <StackPanel Orientation="Horizontal">
                                                     <TextBlock Text="{Binding Channel.DisplayName}" FontWeight="Bold" FontSize="14"
-                                                           Cursor="Hand" MouseLeftButtonDown="OnOpenChannelName" />
+                                                               Cursor="Hand" MouseLeftButtonDown="OnOpenChannelName" />
                                                     <Border Margin="6,0,0,0" CornerRadius="8" Padding="6,1" VerticalAlignment="Center"
                                                             Background="{Binding Channel.Platform, Converter={StaticResource PlatformColorConverter}}">
                                                         <TextBlock Text="{Binding Channel.Platform, Converter={StaticResource PlatformNameConverter}}"
                                                                    FontSize="10" FontWeight="Bold" Foreground="White" />
                                                     </Border>
+                                                    <Ellipse Width="8" Height="8" Margin="8,0,0,0" VerticalAlignment="Center"
+                                                             Fill="{Binding Channel.CurrentStreamTitle, Converter={StaticResource TitleToStatusBrushConverter}}"
+                                                             ToolTip="{Binding Channel.CurrentStreamTitle, Converter={StaticResource TitleToStatusTextConverter}}" />
                                                 </StackPanel>
                                                 <TextBlock Text="{Binding Channel.CurrentStreamTitle}" FontSize="12"
                                                            Foreground="Gray" TextTrimming="CharacterEllipsis"
