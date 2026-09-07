@@ -37,8 +37,10 @@ Output: `TwitchDVR.App/bin/Release/net8.0-windows/StreamDVR.exe`
 
 ## One-shot build (auto-version, single-file exe + zip)
 
-`build.ps1` bumps the PATCH version (`Windows/version.txt`), publishes a self-contained
-single-file `StreamDVR.exe` and zips it:
+`build.ps1` publishes a self-contained single-file `StreamDVR.exe` and zips it.
+Unlike the macOS build it does **not** bump the version: it reads the shared
+repo-root `build_version.txt` — the same version used by the macOS build — so both
+platforms always ship in the same release:
 
 ```powershell
 cd Windows
@@ -47,7 +49,7 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1
 
 Output:
 - `TwitchDVR.App\bin\Release\net8.0-windows\win-x64\publish\StreamDVR.exe`
-- `Windows\StreamDVR-Windows.zip`
+- `Windows\StreamDVR-Windows-v<version>.zip` (version matches the macOS release)
 
 It bundles the .NET 8 runtime and WebView2 loader — no .NET install needed. On first
 launch the app auto-installs missing `streamlink` and `ffmpeg` via `winget`.

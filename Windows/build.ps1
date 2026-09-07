@@ -1,20 +1,16 @@
 $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$versionFile = Join-Path $root "version.txt"
+$versionFile = Join-Path $root "..\build_version.txt"
 
-# Read / default version, bump PATCH on every build (mirrors the macOS build.sh).
-$version = "1.0.5"
+# Windows shares the version number with macOS (repo root build_version.txt),
+# so both platforms always ship in the same release. No OS-specific bump here:
+# the version only moves when the macOS build.sh bumps it.
+$version = "1.1.13"
 if (Test-Path $versionFile) {
     $version = (Get-Content $versionFile).Trim()
 }
-if (-not $version) { $version = "1.0.5" }
-
-$parts = $version.Split(".")
-if ($parts.Count -ne 3) { $parts = @("1", "0", "5") }
-$parts[2] = ([int]$parts[2] + 1).ToString()
-$newVersion = $parts -join "."
-Set-Content -Path $versionFile -Value $newVersion -NoNewline
+if (-not $version) { $version = "1.1.13" }
 
 # Keep the csproj default Version in sync so plain `dotnet build` also reports it.
 $csproj = Join-Path $root "TwitchDVR.App\TwitchDVR.App.csproj"
@@ -22,11 +18,11 @@ $csprojText = Get-Content $csproj -Raw
 $csprojText = [regex]::Replace(
     $csprojText,
     '<Version>.*?</Version>',
-    "<Version>$newVersion</Version>")
+    "<Version>$version</Version>")
 Set-Content -Path $csproj -Value $csprojText -NoNewline
 
 Write-Host ""
-Write-Host "==== Build StreamDVR $newVersion (Windows) ===="
+Write-Host "==== Build StreamDVR $version (Windows, shared with macOS) ===="
 Write-Host ""
 
 dotnet publish (Join-Path $root "TwitchDVR.App\TwitchDVR.App.csproj") -c Release -r win-x64 `
@@ -35,7 +31,7 @@ dotnet publish (Join-Path $root "TwitchDVR.App\TwitchDVR.App.csproj") -c Release
   -p:IncludeNativeLibrariesForSelfExtract=true `
   -p:EnableCompressionInSingleFile=true `
   -p:EnableWindowsTargeting=true `
-  -p:Version=$newVersion
+  -p:Version=$version
 
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -44,7 +40,7 @@ Write-Host ""
 Write-Host "==== Output: $publishDir\StreamDVR.exe ===="
 Write-Host ""
 
-$zipPath = Join-Path $root "StreamDVR-Windows-v$newVersion.zip"
+$zipPath = Join-Path $root "StreamDVR-Windows-v$version.zip"
 if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
 Compress-Archive -Path (Join-Path $publishDir "StreamDVR.exe") -DestinationPath $zipPath
 Write-Host "Zipped: $zipPath"
