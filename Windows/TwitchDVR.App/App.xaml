@@ -1,0 +1,97 @@
+<Application x:Class="TwitchDVR.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:TwitchDVR.App"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+
+        <!-- Purple accent (Twitch-like) -->
+        <SolidColorBrush x:Key="AccentBrush" Color="#9146FF" />
+        <SolidColorBrush x:Key="AccentDimBrush" Color="#7B3CD6" />
+
+        <BooleanToVisibilityConverter x:Key="BoolVisConverter" />
+
+        <!-- bool -> red/gray text -->
+        <local:BoolRedConverter x:Key="BoolRedConverter" />
+
+        <!-- bool -> red/black error text -->
+        <local:ErrorRedConverter x:Key="ErrorRedConverter" />
+
+        <!-- channel avatar helpers -->
+        <local:InitialConverter x:Key="InitialConverter" />
+        <local:EmptyToImageSourceConverter x:Key="EmptyToImageSourceConverter" />
+
+        <!-- platform badge helpers -->
+        <local:PlatformNameConverter x:Key="PlatformNameConverter" />
+        <local:PlatformColorConverter x:Key="PlatformColorConverter" />
+
+        <!-- Accent outline button -->
+        <Style x:Key="AccentButton" TargetType="Button">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="4" Padding="12,6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{StaticResource AccentDimBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Solid accent button -->
+        <Style x:Key="AccentSolidButton" TargetType="Button" BasedOn="{StaticResource AccentButton}" />
+
+        <!-- Small neutral button -->
+        <Style x:Key="SmallButton" TargetType="Button">
+            <Setter Property="Background" Value="#EEEAF6" />
+            <Setter Property="Foreground" Value="#333" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="4" Padding="8,4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#DCD4EC" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Record ToggleButton -->
+        <Style x:Key="RecordToggleStyle" TargetType="ToggleButton">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="bd" Background="#EEEAF6" CornerRadius="4" Padding="8,4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="Red" />
+                                <Setter Property="Foreground" Value="White" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+    </Application.Resources>
+</Application>

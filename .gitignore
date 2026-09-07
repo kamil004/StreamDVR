@@ -1,0 +1,19 @@
+# macOS
+.DS_Store
+build/
+**/.build/
+build_version.txt
+icnsbuild/
+icnsbuild_canvas.png
+icon.iconset/
+
+# .NET / Windows build artifacts
+**/obj/
+**/bin/
+Windows/TwitchDVR.exe
+Windows/TwitchDVR-Windows.zip
+Windows/TwitchDVR-Windows/
+Windows/.vs/
+
+# Misc
+*.user

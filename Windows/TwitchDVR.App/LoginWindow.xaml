@@ -1,0 +1,25 @@
+<Window x:Class="TwitchDVR.App.LoginWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="Login with Twitch" Height="620" Width="500"
+        WindowStartupLocation="CenterOwner" Background="#F2F0F7">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Margin="12,10" FontSize="13" Foreground="Gray"
+                   Text="Sign in to your Twitch account below. When finished, close this window." />
+
+        <wv2:WebView2 x:Name="WebView" Grid.Row="1" Margin="0" />
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8">
+            <TextBlock x:Name="HintText" Text="Waiting for login..." Foreground="Gray" Margin="0,0,12,0" />
+            <Button Content="Close" Padding="12,6" Click="OnClose"
+                    Style="{StaticResource AccentSolidButton}" />
+        </StackPanel>
+    </Grid>
+</Window>
