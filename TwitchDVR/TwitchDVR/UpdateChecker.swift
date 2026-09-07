@@ -27,7 +27,9 @@ struct UpdateChecker {
     }
 
     static func stripV(_ s: String) -> String {
-        s.hasPrefix("v") ? String(s.dropFirst()) : s
+        var r = s
+        while r.hasPrefix("v") || r.hasPrefix("-") { r = String(r.dropFirst()) }
+        return r
     }
 
     /// 1.0.9 < 1.0.15 < 1.1.0
