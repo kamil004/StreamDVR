@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -134,21 +135,16 @@ public static class PlatformProvider
             }
             default:
             {
-                var json = await FetchKickChannelAsync(login);
-                if (json == null) return null;
-                var hasLive = json.TryGetValue("livestream", out var l) && l.ValueKind == JsonValueKind.Object;
-                var playbackUrl = KickPlaybackUrl(json);
-                var live = hasLive || await KickPlaybackIsLiveAsync(playbackUrl);
-                var displayName = KickParse.DisplayName(json) ?? login;
+                var probe = await ProbeKickLiveAsync(login);
                 return new ChannelStatus
                 {
                     Id = $"kick:{login}",
                     Login = login,
-                    DisplayName = displayName,
-                    ProfileImageURL = KickParse.ProfilePic(json),
-                    IsLive = live,
-                    Title = hasLive && l.TryGetProperty("session_title", out var t) ? t.GetString() ?? "" : (live ? displayName : ""),
-                    Game = hasLive ? KickParse.CategoryName(l) : ""
+                    DisplayName = probe.DisplayName,
+                    ProfileImageURL = probe.ProfilePic,
+                    IsLive = probe.IsLive,
+                    Title = probe.IsLive && string.IsNullOrEmpty(probe.Title) ? probe.DisplayName : probe.Title,
+                    Game = probe.Game
                 };
             }
         }
@@ -181,28 +177,15 @@ public static class PlatformProvider
             }
             default:
             {
-                var json = await FetchKickChannelAsync(login);
-                if (json == null) return null;
-                if (json.TryGetValue("livestream", out var live) && live.ValueKind == JsonValueKind.Object)
-                {
-                    return new StreamInfo
-                    {
-                        Title = live.TryGetProperty("session_title", out var title) ? title.GetString() ?? "Live stream" : "Live stream",
-                        Game = KickParse.CategoryName(live),
-                        ViewerCount = live.TryGetProperty("viewer_count", out var vc) && vc.ValueKind == JsonValueKind.Number ? vc.GetInt32() : 0,
-                        StreamM3U8 = "",
-                        ProfileImageUrl = KickParse.ProfilePic(json)
-                    };
-                }
-                var playbackUrl = KickPlaybackUrl(json);
-                if (!await KickPlaybackIsLiveAsync(playbackUrl)) return null;
+                var probe = await ProbeKickLiveAsync(login);
+                if (!probe.IsLive) return null;
                 return new StreamInfo
                 {
-                    Title = KickParse.DisplayName(json) ?? login,
-                    Game = "",
+                    Title = string.IsNullOrEmpty(probe.Title) ? probe.DisplayName : probe.Title,
+                    Game = probe.Game,
                     ViewerCount = 0,
                     StreamM3U8 = "",
-                    ProfileImageUrl = KickParse.ProfilePic(json)
+                    ProfileImageUrl = probe.ProfilePic
                 };
             }
         }
@@ -328,10 +311,68 @@ public static class PlatformProvider
 
     // ---- Kick ----
 
-    private static string KickPlaybackUrl(Dictionary<string, JsonElement> json)
-        => json.TryGetValue("playback_url", out var pu) && pu.ValueKind == JsonValueKind.String
-            ? pu.GetString() ?? ""
-            : "";
+    private sealed class KickLiveProbe
+    {
+        public bool IsLive;
+        public string Title = "";
+        public string Game = "";
+        public string DisplayName = "";
+        public string ProfilePic = "";
+    }
+
+    /// <summary>
+    /// Multi-signal Kick liveness check that never throws. The public channels endpoint can
+    /// return `livestream: null` for anonymous requests (or a Cloudflare challenge HTML to
+    /// some HTTP stacks), so we fall back through progressively more authoritative probes:
+    /// livestream object → playback HLS → /livestream endpoint → streamlink itself.
+    /// streamlink is the last resort (and the same binary that records), so its verdict on
+    /// `kick.com/&lt;login&gt;` is authoritative.
+    /// </summary>
+    private static async Task<KickLiveProbe> ProbeKickLiveAsync(string login)
+    {
+        var probe = new KickLiveProbe { DisplayName = login };
+
+        Dictionary<string, object?>? json = null;
+        try { json = await FetchKickChannelAsync(login); }
+        catch { json = null; }
+
+        if (json != null)
+        {
+            probe.DisplayName = KickParse.DisplayName(json) ?? login;
+            probe.ProfilePic = KickParse.ProfilePic(json);
+
+            if (json.TryGetValue("livestream", out var l) && l is Dictionary<string, object?> liveObj)
+            {
+                probe.IsLive = true;
+                probe.Title = liveObj.TryGetValue("session_title", out var t) ? t as string ?? "" : "";
+                probe.Game = KickParse.CategoryName(liveObj);
+                return probe;
+            }
+
+            if (await KickPlaybackIsLiveAsync(KickPlaybackUrl(json)))
+            {
+                probe.IsLive = true;
+                return probe;
+            }
+        }
+
+        if (await KickLivestreamEndpointIsLiveAsync(login))
+        {
+            probe.IsLive = true;
+            return probe;
+        }
+
+        if (await KickStreamUrlProbeAsync(login))
+        {
+            probe.IsLive = true;
+            return probe;
+        }
+
+        return probe;
+    }
+
+    private static string KickPlaybackUrl(Dictionary<string, object?> json)
+        => json.TryGetValue("playback_url", out var pu) && pu is string s ? s : "";
 
     /// <summary>
     /// Reliable live fallback for when the channels endpoint omits `livestream`
@@ -363,9 +404,87 @@ public static class PlatformProvider
         }
     }
 
-    /// <summary>Channel JSON from the public API. Null only when the channel doesn't exist;
-    /// rate-limited / server errors throw so the channel isn't dropped as offline.</summary>
-    private static async Task<Dictionary<string, JsonElement>?> FetchKickChannelAsync(string login)
+    /// <summary>The dedicated /livestream endpoint (what streamlink's kick plugin calls):
+    /// returns a data object for a live channel, null/404 otherwise.</summary>
+    private static async Task<bool> KickLivestreamEndpointIsLiveAsync(string login)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"https://kick.com/api/v2/channels/{login}/livestream");
+            request.Headers.TryAddWithoutValidation("User-Agent", ChromeUserAgent);
+            if (KickSession.CookieHeader is { } header)
+                request.Headers.TryAddWithoutValidation("Cookie", header);
+            using var response = await Http.SendAsync(request);
+            if (response.StatusCode != System.Net.HttpStatusCode.OK) return false;
+            var body = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(body);
+            return doc.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Last-resort liveness probe: asks streamlink to resolve `kick.com/&lt;login&gt;`
+    /// without recording. True only when streamlink finds playable streams — it's the same
+    /// binary that records, so its verdict is authoritative regardless of our HTTP stack.</summary>
+    private static async Task<bool> KickStreamUrlProbeAsync(string login)
+    {
+        var streamlink = StreamRecorder.FindStreamlink();
+        if (streamlink == null) return false;
+
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = streamlink,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            psi.ArgumentList.Add("--stream-url");
+
+            // Same cookies the recorder forwards, so member/age-gated rooms resolve too.
+            foreach (var cookie in KickSession.Cookies)
+            {
+                psi.ArgumentList.Add("--http-cookie");
+                psi.ArgumentList.Add($"{cookie.Key}={cookie.Value}");
+            }
+
+            psi.ArgumentList.Add($"https://kick.com/{login}");
+            psi.ArgumentList.Add("best");
+
+            using var proc = Process.Start(psi);
+            if (proc == null) return false;
+
+            var outputTask = proc.StandardOutput.ReadToEndAsync();
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            try
+            {
+                await proc.WaitForExitAsync(cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                try { proc.Kill(entireProcessTree: true); } catch { }
+            }
+
+            var output = await outputTask;
+            var url = output.Trim();
+            return proc.ExitCode == 0 && url.StartsWith("http", StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Channel JSON from the public API, fully materialized into CLR objects
+    /// (dictionaries / lists / strings / numbers / bools) so values stay readable after the
+    /// JsonDocument is disposed. Null only when the channel doesn't exist; rate-limited /
+    /// server errors throw so the channel isn't dropped as offline.</summary>
+    private static async Task<Dictionary<string, object?>?> FetchKickChannelAsync(string login)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, $"https://kick.com/api/v2/channels/{login}");
         request.Headers.TryAddWithoutValidation("User-Agent", ChromeUserAgent);
@@ -379,17 +498,31 @@ public static class PlatformProvider
 
         var json = await response.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(json);
-        var dict = new Dictionary<string, JsonElement>();
-        foreach (var prop in doc.RootElement.EnumerateObject()) dict[prop.Name] = prop.Value;
+        var dict = new Dictionary<string, object?>();
+        foreach (var prop in doc.RootElement.EnumerateObject()) dict[prop.Name] = ToClr(prop.Value);
         return dict;
     }
 
+    private static object? ToClr(JsonElement el) => el.ValueKind switch
+    {
+        JsonValueKind.String => el.GetString(),
+        JsonValueKind.Number => el.TryGetInt64(out var l)
+            ? l
+            : el.TryGetDouble(out var d) ? d : null,
+        JsonValueKind.True => true,
+        JsonValueKind.False => false,
+        JsonValueKind.Object => el.EnumerateObject()
+            .ToDictionary(p => p.Name, p => ToClr(p.Value)),
+        JsonValueKind.Array => el.EnumerateArray().Select(ToClr).ToList(),
+        _ => null
+    };
+
     internal static class KickParse
     {
-        public static string ProfilePic(Dictionary<string, JsonElement> json)
+        public static string ProfilePic(Dictionary<string, object?> json)
             => JsonString(json, "user", "profile_pic") ?? "";
 
-        public static string? DisplayName(Dictionary<string, JsonElement> json)
+        public static string? DisplayName(Dictionary<string, object?> json)
         {
             var name = JsonString(json, "user", "username");
             if (!string.IsNullOrEmpty(name)) return name;
@@ -397,25 +530,30 @@ public static class PlatformProvider
             return string.IsNullOrEmpty(slug) ? null : slug;
         }
 
-        public static string CategoryName(JsonElement live)
+        public static string CategoryName(object? live)
         {
-            if (!live.TryGetProperty("categories", out var categories) ||
-                categories.ValueKind != JsonValueKind.Array ||
-                categories.GetArrayLength() == 0) return "";
-            var first = categories[0];
-            return first.TryGetProperty("name", out var name) ? name.GetString() ?? "" : "";
+            if (live is not Dictionary<string, object?> d ||
+                d.TryGetValue("categories", out var categories) is false ||
+                categories is not List<object?> list ||
+                list.Count == 0 ||
+                list[0] is not Dictionary<string, object?> first)
+                return "";
+            return JsonStringRaw(first, "name") ?? "";
         }
 
-        private static string? JsonString(Dictionary<string, JsonElement> json, params string[] path)
+        /// <summary>Walks nested dictionaries along `path` and returns the value as string.</summary>
+        private static string? JsonString(Dictionary<string, object?> json, params string[] path)
         {
-            JsonElement current = default;
-            var found = json.TryGetValue(path[0], out current);
-            for (var i = 1; found && i < path.Length; i++)
+            object? current = json;
+            foreach (var key in path)
             {
-                found = current.TryGetProperty(path[i], out current);
+                if (current is not Dictionary<string, object?> d || !d.TryGetValue(key, out var v)) return null;
+                current = v;
             }
-            if (!found || current.ValueKind != JsonValueKind.String) return null;
-            return current.GetString();
+            return current as string;
         }
+
+        private static string? JsonStringRaw(Dictionary<string, object?> json, string key)
+            => json.TryGetValue(key, out var v) ? v as string : null;
     }
 }
