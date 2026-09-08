@@ -93,7 +93,7 @@ open build/StreamDVR.app
 
 ```bash
 export DOTNET_ROOT="$HOME/.dotnet"; export PATH="$DOTNET_ROOT:$PATH"   # if not on PATH
-dotnet build Windows/TwitchDVR.App/TwitchDVR.App.csproj -c Release     # quick build
+dotnet build Windows/StreamDVR.App/StreamDVR.App.csproj -c Release     # quick build
 cd Windows
 powershell -ExecutionPolicy Bypass -File .\build.ps1                   # auto-version + single-file exe + zip
 ```

@@ -3,9 +3,9 @@ using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using TwitchDVR.Core;
+using StreamDVR.Core;
 
-namespace TwitchDVR.App;
+namespace StreamDVR.App;
 
 public class BoolToVisibilityConverter : IValueConverter
 {

@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-namespace TwitchDVR.Core;
+namespace StreamDVR.Core;
 
 /// <summary>
 /// Platform-aware dispatching for Twitch / Chaturbate / Kick (mirrors the macOS edition).

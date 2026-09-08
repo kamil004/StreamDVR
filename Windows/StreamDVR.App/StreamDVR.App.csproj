@@ -6,9 +6,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <RootNamespace>TwitchDVR.App</RootNamespace>
+    <RootNamespace>StreamDVR.App</RootNamespace>
     <AssemblyName>StreamDVR</AssemblyName>
-    <Version>1.2.1</Version>
+    <Version>1.2.2</Version>
     <Product>StreamDVR</Product>
     <Description>Record Twitch, Chaturbate and Kick streams</Description>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -20,7 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\TwitchDVR.Core\TwitchDVR.Core.csproj" />
+    <ProjectReference Include="..\StreamDVR.Core\StreamDVR.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

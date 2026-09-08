@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-namespace TwitchDVR.Core;
+namespace StreamDVR.Core;
 
 public enum StreamPlatform
 {

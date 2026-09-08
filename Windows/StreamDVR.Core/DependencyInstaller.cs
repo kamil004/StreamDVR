@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace TwitchDVR.Core;
+namespace StreamDVR.Core;
 
 /// <summary>
 /// Automatically installs missing runtime dependencies (streamlink, ffmpeg/ffprobe)

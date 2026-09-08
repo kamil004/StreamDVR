@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace TwitchDVR.Core;
+namespace StreamDVR.Core;
 
 /// <summary>
 /// Plain-file settings store (JSON in %APPDATA%\StreamDVR\settings.json).

@@ -1,9 +1,9 @@
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
-using TwitchDVR.Core;
+using StreamDVR.Core;
 
-namespace TwitchDVR.App;
+namespace StreamDVR.App;
 
 public partial class KickLoginWindow : Window
 {

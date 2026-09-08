@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-namespace TwitchDVR.Core;
+namespace StreamDVR.Core;
 
 public record UpdateInfo(string Version, string Tag, Uri AssetUrl, string AssetName);
 

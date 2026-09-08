@@ -13,7 +13,7 @@ if (Test-Path $versionFile) {
 if (-not $version) { $version = "1.1.13" }
 
 # Keep the csproj default Version in sync so plain `dotnet build` also reports it.
-$csproj = Join-Path $root "TwitchDVR.App\TwitchDVR.App.csproj"
+$csproj = Join-Path $root "StreamDVR.App\StreamDVR.App.csproj"
 $csprojText = Get-Content $csproj -Raw
 $csprojText = [regex]::Replace(
     $csprojText,
@@ -25,7 +25,7 @@ Write-Host ""
 Write-Host "==== Build StreamDVR $version (Windows, shared with macOS) ===="
 Write-Host ""
 
-dotnet publish (Join-Path $root "TwitchDVR.App\TwitchDVR.App.csproj") -c Release -r win-x64 `
+dotnet publish (Join-Path $root "StreamDVR.App\StreamDVR.App.csproj") -c Release -r win-x64 `
   --self-contained true `
   -p:PublishSingleFile=true `
   -p:IncludeNativeLibrariesForSelfExtract=true `
@@ -35,7 +35,7 @@ dotnet publish (Join-Path $root "TwitchDVR.App\TwitchDVR.App.csproj") -c Release
 
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-$publishDir = Join-Path $root "TwitchDVR.App\bin\Release\net8.0-windows\win-x64\publish"
+$publishDir = Join-Path $root "StreamDVR.App\bin\Release\net8.0-windows\win-x64\publish"
 Write-Host ""
 Write-Host "==== Output: $publishDir\StreamDVR.exe ===="
 Write-Host ""

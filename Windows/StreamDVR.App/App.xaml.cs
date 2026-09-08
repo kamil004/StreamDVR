@@ -1,6 +1,6 @@
 using System.Windows;
 
-namespace TwitchDVR.App;
+namespace StreamDVR.App;
 
 public partial class App : Application
 {

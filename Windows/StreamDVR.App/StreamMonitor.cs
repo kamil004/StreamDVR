@@ -6,9 +6,9 @@ using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Windows;
-using TwitchDVR.Core;
+using StreamDVR.Core;
 
-namespace TwitchDVR.App;
+namespace StreamDVR.App;
 
 public class LogEntry
 {

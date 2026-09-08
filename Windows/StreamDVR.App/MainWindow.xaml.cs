@@ -7,9 +7,9 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.Win32;
-using TwitchDVR.Core;
+using StreamDVR.Core;
 
-namespace TwitchDVR.App;
+namespace StreamDVR.App;
 
 public partial class MainWindow : Window
 {

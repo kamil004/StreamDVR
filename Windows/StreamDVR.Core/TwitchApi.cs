@@ -2,7 +2,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 
-namespace TwitchDVR.Core;
+namespace StreamDVR.Core;
 
 /// <summary>
 /// Twitch GraphQL API client (same public web Client-ID as the macOS version).

@@ -24,14 +24,14 @@ streams at maximum quality and auto-starts when a tracked channel goes live.
 
 ```bash
 cd Windows
-dotnet build TwitchDVR.App/TwitchDVR.App.csproj -c Release
+dotnet build StreamDVR.App/StreamDVR.App.csproj -c Release
 ```
 
-Output: `TwitchDVR.App/bin/Release/net8.0-windows/StreamDVR.exe`
+Output: `StreamDVR.App/bin/Release/net8.0-windows/StreamDVR.exe`
 
 ## Build with Visual Studio
 
-1. Open `TwitchDVR.App/TwitchDVR.App.csproj` (or the project folder) in Visual Studio 2022+.
+1. Open `StreamDVR.App/StreamDVR.App.csproj` (or the project folder) in Visual Studio 2022+.
 2. If prompted, install the **.NET desktop development** workload.
 3. Press **F5** to build and run, or **Ctrl+Shift+B** to build.
 
@@ -48,7 +48,7 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1
 ```
 
 Output:
-- `TwitchDVR.App\bin\Release\net8.0-windows\win-x64\publish\StreamDVR.exe`
+- `StreamDVR.App\bin\Release\net8.0-windows\win-x64\publish\StreamDVR.exe`
 - `Windows\StreamDVR-Windows-v<version>.zip` (version matches the macOS release)
 
 It bundles the .NET 8 runtime and WebView2 loader — no .NET install needed. On first

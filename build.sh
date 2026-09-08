@@ -3,7 +3,7 @@ set -e
 
 APP_NAME="StreamDVR"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-SRC_DIR="$SCRIPT_DIR/TwitchDVR/TwitchDVR"
+SRC_DIR="$SCRIPT_DIR/StreamDVR/StreamDVR"
 BUILD_DIR="$SCRIPT_DIR/build"
 APP_DIR="$BUILD_DIR/$APP_NAME.app"
 CONTENTS_DIR="$APP_DIR/Contents"
@@ -152,9 +152,6 @@ echo "  ✓ Info.plist created"
 if [ -f "$SCRIPT_DIR/streamdvr.icns" ]; then
     cp "$SCRIPT_DIR/streamdvr.icns" "$RESOURCES_DIR/AppIcon.icns"
     echo "  ✓ App icon embedded (streamdvr.icns)"
-elif [ -f "$SCRIPT_DIR/twitchicon.icns" ]; then
-    cp "$SCRIPT_DIR/twitchicon.icns" "$RESOURCES_DIR/AppIcon.icns"
-    echo "  ✓ App icon embedded"
 else
     echo "  ⚠️  No app icon found — using default icon"
 fi

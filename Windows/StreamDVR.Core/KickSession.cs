@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace TwitchDVR.Core;
+namespace StreamDVR.Core;
 
 /// <summary>
 /// Persisted Kick session (cookie jar) captured from the in-app login WebView.

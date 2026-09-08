@@ -1,8 +1,8 @@
 using System.Windows;
 using System.Windows.Threading;
-using TwitchDVR.Core;
+using StreamDVR.Core;
 
-namespace TwitchDVR.App;
+namespace StreamDVR.App;
 
 public partial class LoginWindow : Window
 {

@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace TwitchDVR.Core;
+namespace StreamDVR.Core;
 
 public class StreamRecorderResult
 {
