@@ -26,6 +26,7 @@ struct StreamChannel: Identifiable, Codable, Hashable {
     var displayName: String
     var platform: StreamPlatform = .twitch
     var isRecording: Bool = false
+    var isIgnored: Bool = false
     var currentStreamTitle: String = ""
     var currentGame: String = ""
     var profileImageURL: String = ""

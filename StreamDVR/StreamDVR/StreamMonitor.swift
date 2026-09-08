@@ -385,6 +385,24 @@ class StreamMonitor: ObservableObject {
         addLog("Removed channel: \(channel.login)", level: .info)
     }
 
+    /// Marks a channel as ignored (excluded from monitoring: status polling,
+    /// auto-record and live notifications) or un-ignored. Ignoring a currently
+    /// recording channel stops its recording.
+    func setIgnored(_ channel: StreamChannel, _ ignored: Bool) {
+        guard let idx = channels.firstIndex(where: { $0.id == channel.id }) else { return }
+        channels[idx].isIgnored = ignored
+        saveChannels()
+        if ignored {
+            if let recorder = recorders[channel.id] {
+                stopRecording(channel)
+            }
+            recordingStatuses[channel.id] = .idle
+            addLog("Ignored \(channel.login) — excluded from monitoring", level: .warning)
+        } else {
+            addLog("Monitoring \(channel.login) again", level: .info)
+        }
+    }
+
     func startMonitoring() {
         guard !isMonitoring else { return }
 
@@ -736,6 +754,7 @@ class StreamMonitor: ObservableObject {
         for channel in channels {
             guard !Task.isCancelled else { return }
             let key = channel.id
+            if channel.isIgnored { continue }
             do {
                 let status = try await Self.provider(for: channel.platform).getStatus(login: channel.login)
                 if let idx = channels.firstIndex(where: { $0.id == channel.id }) {

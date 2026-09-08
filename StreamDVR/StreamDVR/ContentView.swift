@@ -339,12 +339,25 @@ struct ChannelRowView: View {
                     Circle()
                             .fill(!current.currentStreamTitle.isEmpty ? Color.green : Color.gray.opacity(0.6))
                             .frame(width: 8, height: 8)
+                    if current.isIgnored {
+                        Text("Ignored")
+                            .font(.caption2.bold())
+                            .foregroundColor(.red)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 1)
+                            .background(Color.red.opacity(0.12))
+                            .clipShape(Capsule())
+                    }
                 }
                 if !current.currentStreamTitle.isEmpty {
                     Text(current.currentStreamTitle)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .lineLimit(1)
+                } else if current.isIgnored {
+                    Text("Ignored — not monitored")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 } else {
                     Text("Offline")
                         .font(.caption)
@@ -400,6 +413,16 @@ struct ChannelRowView: View {
                 }
                 .buttonStyle(.borderless)
                 .help("Open recording folder")
+
+                Button {
+                    monitor.setIgnored(current, !current.isIgnored)
+                } label: {
+                    Image(systemName: "circle.slash")
+                        .frame(width: 20, height: 20)
+                }
+                .buttonStyle(.borderless)
+                .foregroundColor(current.isIgnored ? .red : .secondary)
+                .help(current.isIgnored ? "Stop ignoring channel" : "Ignore channel (exclude from monitoring)")
 
                 Button {
                     monitor.removeChannel(current)
@@ -588,6 +611,10 @@ struct StatusBarView: View {
         monitor.recordingStatuses.values.filter(\.isActive).count
     }
 
+    private var ignoredCount: Int {
+        monitor.channels.filter(\.isIgnored).count
+    }
+
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
     }
@@ -600,6 +627,8 @@ struct StatusBarView: View {
                 .foregroundColor(.green)
             Label("\(monitor.channels.count - onlineCount) offline", systemImage: "moon")
                 .foregroundColor(.secondary)
+            Label("\(ignoredCount) ignored", systemImage: "circle.slash")
+                .foregroundColor(ignoredCount > 0 ? .red : .secondary)
             Label("\(recordingCount) recording", systemImage: "record.circle")
                 .foregroundColor(recordingCount > 0 ? .red : .secondary)
 
