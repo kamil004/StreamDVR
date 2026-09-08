@@ -2,6 +2,7 @@ import Foundation
 import AppKit
 import WebKit
 import SwiftUI
+import UserNotifications
 
 struct RecordingStats: Equatable {
     var fileSize: Int64 = 0
@@ -9,6 +10,17 @@ struct RecordingStats: Equatable {
     var mediaDuration: TimeInterval = 0
     var resolution: String = ""
     var bitrate: String = ""
+}
+
+/// Shows notification banners even while the app is in the foreground.
+final class LiveNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
+    }
 }
 
 @MainActor
@@ -28,6 +40,7 @@ class StreamMonitor: ObservableObject {
     @Published var showKickLogin = false
     @Published var preventSleep: Bool = (ConfigStore.load(key: "prevent_sleep") ?? "1") == "1"
     @Published var autoSortLive: Bool = (ConfigStore.load(key: "auto_sort_live") ?? "0") == "1"
+    @Published var liveNotifications: Bool = (ConfigStore.load(key: "live_notifications") ?? "1") == "1"
     @Published var checkUpdates: Bool = (ConfigStore.load(key: "check_updates") ?? "1") == "1"
     @Published var updateState: UpdateCheckState = .idle
     @Published var installingDependencies = false
@@ -46,6 +59,12 @@ class StreamMonitor: ObservableObject {
     private var recorders: [String: StreamRecorder] = [:]
     @Published var pollInterval: TimeInterval = 60
     private let sleepPreventer = SleepPreventer()
+    private let notificationDelegate = LiveNotificationDelegate()
+
+    /// Channels seen live on the last status poll — used to detect
+    /// offline → live transitions for notifications.
+    private var knownLiveKeys: Set<String> = []
+    private var hasCompletedInitialLiveCheck = false
 
     struct LogEntry: Identifiable {
         let id = UUID()
@@ -146,6 +165,62 @@ class StreamMonitor: ObservableObject {
         // Always refresh channel status (online/offline + title) — immediately
         // at launch and then every pollInterval, regardless of monitoring.
         restartStatusTask()
+
+        // Live-channel notifications.
+        UNUserNotificationCenter.current().delegate = notificationDelegate
+        if liveNotifications {
+            ensureNotificationsAuthorized()
+        }
+    }
+
+    /// Requests notification permission only when the OS hasn't decided yet;
+    /// logs a hint if the user disabled notifications for the app.
+    func ensureNotificationsAuthorized() {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            switch settings.authorizationStatus {
+            case .notDetermined:
+                UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
+                    if !granted {
+                        Task { @MainActor in
+                            self.addLog("Live notifications disabled", level: .info)
+                        }
+                    }
+                }
+            case .denied:
+                Task { @MainActor in
+                    self.addLog("Live notifications blocked — enable in System Settings > Notifications", level: .warning)
+                }
+            default:
+                break
+            }
+        }
+    }
+
+    func saveLiveNotifications() {
+        ConfigStore.save(key: "live_notifications", value: liveNotifications ? "1" : "0")
+        if liveNotifications {
+            ensureNotificationsAuthorized()
+        }
+    }
+
+    /// Posts a system notification that a tracked channel went live.
+    private func postOnlineNotification(for channel: StreamChannel) {
+        guard liveNotifications else { return }
+        let content = UNMutableNotificationContent()
+        content.title = channel.displayName
+        content.body = channel.currentStreamTitle.isEmpty
+            ? "\(channel.platform.displayName) channel is now live"
+            : channel.currentStreamTitle
+        content.sound = .default
+        UNUserNotificationCenter.current().add(
+            UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        ) { error in
+            if let error {
+                Task { @MainActor in
+                    self.addLog("Notification failed: \(error.localizedDescription)", level: .warning)
+                }
+            }
+        }
     }
 
     /// Saves the current poll interval and restarts the poller so it takes
@@ -604,6 +679,7 @@ class StreamMonitor: ObservableObject {
     }
 
     private func checkAllChannels() async {
+        var liveNow = Set<String>()
         for channel in channels {
             guard !Task.isCancelled else { return }
             let key = channel.id
@@ -618,6 +694,15 @@ class StreamMonitor: ObservableObject {
                            let resolved = try? await Self.provider(for: channel.platform).resolveChannel(login: channel.login) {
                             channels[idx].displayName = resolved.displayName
                             saveChannels()
+                        }
+                    }
+
+                    // Offline → live transition: notify (skipped on the very
+                    // first poll so channels already live at launch don't spam).
+                    if status?.isLive == true {
+                        liveNow.insert(key)
+                        if !knownLiveKeys.contains(key), hasCompletedInitialLiveCheck {
+                            postOnlineNotification(for: channels[idx])
                         }
                     }
                 }
@@ -639,6 +724,8 @@ class StreamMonitor: ObservableObject {
                 // ignore network errors during polling
             }
         }
+        hasCompletedInitialLiveCheck = true
+        knownLiveKeys = liveNow
     }
 
     func openLoginView() {

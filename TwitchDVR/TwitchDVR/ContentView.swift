@@ -760,6 +760,16 @@ struct SettingsView: View {
                     .foregroundColor(.secondary)
             }
 
+            Section("Notifications") {
+                Toggle("Notify when a channel goes live", isOn: $monitor.liveNotifications)
+                    .onChange(of: monitor.liveNotifications) { _ in
+                        monitor.saveLiveNotifications()
+                    }
+                Text("Shows a banner (with sound) the moment one of your channels starts streaming. Permission is requested the first time you enable this — manage it later in System Settings > Notifications.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+
             Section("Status Check") {
                 Picker("Check for live streams every", selection: $monitor.pollInterval) {
                     Text("15 seconds").tag(TimeInterval(15))

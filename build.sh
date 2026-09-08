@@ -79,6 +79,7 @@ swiftc \
     -framework WebKit \
     -framework Network \
     -framework IOKit \
+    -framework UserNotifications \
     -parse-as-library \
     -O
 
