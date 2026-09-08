@@ -393,7 +393,7 @@ class StreamMonitor: ObservableObject {
         channels[idx].isIgnored = ignored
         saveChannels()
         if ignored {
-            if let recorder = recorders[channel.id] {
+            if recorders[channel.id] != nil {
                 stopRecording(channel)
             }
             recordingStatuses[channel.id] = .idle

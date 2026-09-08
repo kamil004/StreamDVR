@@ -213,6 +213,7 @@ public class StreamMonitor : INotifyPropertyChanged
     public int OnlineCount { get => _onlineCount; set { _onlineCount = value; OnPropertyChanged(); } }
 
     public int OfflineCount => Channels.Count - OnlineCount;
+    public int IgnoredCount => Channels.Count(c => c.Channel.IsIgnored);
     public int RecordingCount => _recorders.Count;
 
     public async Task RefreshLoginAsync()
@@ -304,6 +305,27 @@ public class StreamMonitor : INotifyPropertyChanged
         Channels.Remove(item);
         SaveChannels();
         AddLog($"Removed channel: {item.Channel.Login}");
+    }
+
+    /// Marks a channel as ignored (excluded from monitoring: status polling,
+    /// auto-record and live notifications) or un-ignored. Ignoring a currently
+    /// recording channel stops its recording.
+    public void SetIgnored(string channelId, bool ignored)
+    {
+        var item = Channels.FirstOrDefault(c => c.Channel.Id == channelId);
+        if (item is null) return;
+        item.Channel.IsIgnored = ignored;
+        SaveChannels();
+        if (ignored)
+        {
+            StopRecording(channelId);
+            AddLog($"Ignored {item.Channel.Login} — excluded from monitoring", isWarning: true);
+        }
+        else
+        {
+            AddLog($"Monitoring {item.Channel.Login} again", isSuccess: true);
+        }
+        OnPropertyChanged(nameof(IgnoredCount));
     }
 
     public void StartMonitoring()
@@ -595,6 +617,7 @@ public class StreamMonitor : INotifyPropertyChanged
             foreach (var item in Channels.ToList())
             {
                 if (ct.IsCancellationRequested) return;
+                if (item.Channel.IsIgnored) continue;
                 await RefreshChannelAsync(item);
             }
             try { await Task.Delay(TimeSpan.FromSeconds(PollIntervalSeconds), ct); }
@@ -672,7 +695,8 @@ public class StreamMonitor : INotifyPropertyChanged
                             Id = id,
                             Login = login,
                             DisplayName = display,
-                            Platform = platform
+                            Platform = platform,
+                            IsIgnored = el.TryGetProperty("isIgnored", out var ig) && ig.ValueKind == JsonValueKind.True
                         }
                     });
                 }
@@ -709,7 +733,8 @@ public class StreamMonitor : INotifyPropertyChanged
             id = c.Channel.Id,
             login = c.Channel.Login,
             displayName = c.Channel.DisplayName,
-            platform = c.Channel.Platform.Slug()
+            platform = c.Channel.Platform.Slug(),
+            isIgnored = c.Channel.IsIgnored
         }).ToList();
         ConfigStore.Save("channels", JsonSerializer.Serialize(payload));
     }

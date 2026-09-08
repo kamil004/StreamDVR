@@ -75,6 +75,13 @@ public class StreamChannel : INotifyPropertyChanged
         set { if (_profileImageUrl == value) return; _profileImageUrl = value; OnPropertyChanged(); }
     }
 
+    bool _isIgnored;
+    public bool IsIgnored
+    {
+        get => _isIgnored;
+        set { if (_isIgnored == value) return; _isIgnored = value; OnPropertyChanged(); }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
     void OnPropertyChanged([CallerMemberName] string? name = null)
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));

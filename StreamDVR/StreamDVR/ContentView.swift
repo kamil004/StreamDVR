@@ -159,7 +159,7 @@ struct ChannelListView: View {
                 .frame(width: 96)
                 .help("Default platform for a plain channel name (no URL). Full URLs always win.")
 
-                TextField("Channel name or URL (Twitch / Chaturbate / Kick, e.g. shroud, chaturbate.com/xxx or kick.com/odablock)", text: $newChannelInput)
+                TextField("Channel name or URL (Twitch, Kick, Chaturbate)", text: $newChannelInput)
                     .textFieldStyle(.roundedBorder)
                     .frame(maxWidth: .infinity)
                     .onSubmit(addChannel)

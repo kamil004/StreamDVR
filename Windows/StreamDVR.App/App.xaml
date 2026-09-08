@@ -14,6 +14,9 @@
         <!-- bool -> red/gray text -->
         <local:BoolRedConverter x:Key="BoolRedConverter" />
 
+        <!-- count -> red (>0) / gray (0) -->
+        <local:CountRedConverter x:Key="CountRedConverter" />
+
         <!-- bool -> red/black error text -->
         <local:ErrorRedConverter x:Key="ErrorRedConverter" />
 

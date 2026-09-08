@@ -215,6 +215,13 @@ public partial class MainWindow : Window
         Monitor.RemoveChannel(item);
     }
 
+    void OnIgnoreChannel(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement fe) return;
+        var item = (ChannelItem)fe.DataContext;
+        Monitor.SetIgnored(item.Channel.Id, !item.Channel.IsIgnored);
+    }
+
     void OnOpenChannelFolder(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement fe) return;

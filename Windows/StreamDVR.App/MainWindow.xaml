@@ -64,6 +64,8 @@
                     <Run Text="{Binding Channels.Count, Mode=OneWay}" /><Run Text=" channels  |  " />
                     <Run Text="{Binding OnlineCount, Mode=OneWay}" Foreground="#2EA043" /><Run Text=" live  |  " />
                     <Run Text="{Binding OfflineCount, Mode=OneWay}" /><Run Text=" offline  |  " />
+                    <Run Text="{Binding IgnoredCount, Mode=OneWay}"
+                         Foreground="{Binding IgnoredCount, Converter={StaticResource CountRedConverter}}" /><Run Text=" ignored  |  " />
                     <Run Text="{Binding RecordingCount, Mode=OneWay}" Foreground="Red" /><Run Text=" recording" />
                 </TextBlock>
 
@@ -169,6 +171,11 @@
                                                         <TextBlock Text="{Binding Channel.Platform, Converter={StaticResource PlatformNameConverter}}"
                                                                    FontSize="10" FontWeight="Bold" Foreground="White" />
                                                     </Border>
+                                                    <Border Margin="6,0,0,0" CornerRadius="8" Padding="6,1" VerticalAlignment="Center"
+                                                            Background="#C00000"
+                                                            Visibility="{Binding Channel.IsIgnored, Converter={StaticResource BoolVisConverter}}">
+                                                        <TextBlock Text="Ignored" FontSize="10" FontWeight="Bold" Foreground="White" />
+                                                    </Border>
                                                     <Ellipse Width="8" Height="8" Margin="8,0,0,0" VerticalAlignment="Center"
                                                              Fill="{Binding Channel.CurrentStreamTitle, Converter={StaticResource TitleToStatusBrushConverter}}"
                                                              ToolTip="{Binding Channel.CurrentStreamTitle, Converter={StaticResource TitleToStatusTextConverter}}" />
@@ -197,6 +204,11 @@
                                                         Style="{StaticResource SmallButton}"
                                                         Click="OnOpenChannelFolder"
                                                         ToolTip="Open recording folder" />
+                                                <Button Content="🚫" Margin="6,0,0,0" Padding="6,2"
+                                                        Style="{StaticResource SmallButton}"
+                                                        Foreground="{Binding Channel.IsIgnored, Converter={StaticResource BoolRedConverter}}"
+                                                        Click="OnIgnoreChannel"
+                                                        ToolTip="Ignore channel (exclude from monitoring)" />
                                                 <Button Content="✕" Margin="6,0,0,0" Padding="6,2"
                                                         Style="{StaticResource SmallButton}"
                                                         Click="OnRemoveChannel"
