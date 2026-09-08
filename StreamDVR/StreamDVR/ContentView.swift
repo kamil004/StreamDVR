@@ -1,4 +1,6 @@
 import SwiftUI
+import AppKit
+import UniformTypeIdentifiers
 
 struct ContentView: View {
     @EnvironmentObject var monitor: StreamMonitor
@@ -789,6 +791,20 @@ struct SettingsView: View {
                     .foregroundColor(.secondary)
             }
 
+            Section("Backup & Restore") {
+                HStack(spacing: 8) {
+                    Button("Create Backup...") {
+                        exportBackup()
+                    }
+                    Button("Restore from Backup...") {
+                        importBackup()
+                    }
+                }
+                Text("Saves your settings (account tokens, output folder, monitoring options) and the channel list to a JSON file — handy for reinstalls or moving to another Mac.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+
             Section("Notifications") {
                 Toggle("Notify when a channel goes live", isOn: $monitor.liveNotifications)
                     .onChange(of: monitor.liveNotifications) { _ in
@@ -858,6 +874,30 @@ struct SettingsView: View {
             monitor.outputDirectory = url.path
             ConfigStore.save(key: "twitch_output_dir", value: url.path)
         }
+    }
+
+    private func exportBackup() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "StreamDVR-backup-\(backupDateStamp).json"
+        panel.message = "Save settings and channel list to a backup file"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        _ = monitor.exportBackup(to: url)
+    }
+
+    private func importBackup() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        panel.message = "Choose a StreamDVR backup file to restore"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        _ = monitor.importBackup(from: url)
+    }
+
+    private var backupDateStamp: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: Date())
     }
 
     @ViewBuilder private var updateStatusView: some View {

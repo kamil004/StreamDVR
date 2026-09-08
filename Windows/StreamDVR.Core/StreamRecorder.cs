@@ -85,7 +85,7 @@ public static class StreamRecorder
         }
     }
 
-    public static StreamRecorderResult Start(string url, string outputDir, string? accessToken,
+    public static StreamRecorderResult Start(string url, string outputDir, string channelName, string? accessToken,
         StreamPlatform platform, StreamInfo streamInfo)
     {
         var streamlink = FindStreamlink();
@@ -101,9 +101,12 @@ public static class StreamRecorder
         var dateString = now.ToString("yyyy-MM-dd");
         var timeString = now.ToString("HH-mm-ss");
 
+        var safeChannel = SanitizeFilename(channelName);
+        var finalChannel = string.IsNullOrEmpty(safeChannel) ? "channel" : safeChannel;
+
         var safeTitle = SanitizeFilename(streamInfo.Title);
-        var finalTitle = string.IsNullOrEmpty(safeTitle) ? "stream" : safeTitle;
-        var filename = $"{dateString}_{finalTitle}_{timeString}.ts";
+        var finalTitle = string.IsNullOrEmpty(safeTitle) ? "stream" : CapLength(safeTitle, 35);
+        var filename = $"{finalChannel}_{dateString}-{timeString}_{finalTitle}.ts";
         var outputPath = Path.Combine(outputDir, filename);
 
         var args = new List<string>();
@@ -201,5 +204,37 @@ public static class StreamRecorder
         var invalid = Path.GetInvalidFileNameChars();
         var cleaned = new string(title.Select(c => invalid.Contains(c) ? '-' : c).ToArray());
         return cleaned.Trim().TrimEnd('.');
+    }
+
+    /// Caps a string to max characters at a grapheme (unicode text element)
+    /// boundary so multi-byte characters are never split.
+    private static string CapLength(string s, int max)
+    {
+        if (string.IsNullOrEmpty(s) || s.Length <= max) return s;
+        var result = new System.Text.StringBuilder();
+        var enumerator = System.Globalization.StringInfo.GetTextElementEnumerator(s);
+        while (enumerator.MoveNext() && result.Length < max)
+        {
+            result.Append(enumerator.GetTextElement());
+        }
+        return result.ToString().Trim();
+    }
+
+    /// Removes a leftover output file that never received real data
+    /// (some streams produce a 0-byte / header-only .ts). Returns true if removed.
+    public static bool DeleteIfEmpty(string path)
+    {
+        try
+        {
+            var fi = new FileInfo(path);
+            if (!fi.Exists) return false;
+            if (fi.Length >= 1024) return false;
+            fi.Delete();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

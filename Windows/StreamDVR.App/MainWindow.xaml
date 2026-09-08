@@ -338,6 +338,19 @@
                             </StackPanel>
                         </GroupBox>
 
+                        <GroupBox Header="Backup &amp; Restore" Padding="8" Margin="0,0,0,12">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="Create Backup..." Padding="12,6" Style="{StaticResource AccentSolidButton}"
+                                            Click="OnCreateBackup" />
+                                    <Button Content="Restore from Backup..." Padding="12,6" Margin="8,0,0,0"
+                                            Style="{StaticResource AccentSolidButton}" Click="OnRestoreBackup" />
+                                </StackPanel>
+                                <TextBlock Text="Saves your settings (account tokens, output folder, monitoring options) and the channel list to a JSON file — handy for reinstalls or moving to another PC."
+                                           FontSize="11" Foreground="Gray" TextWrapping="Wrap" Margin="0,4,0,0" />
+                            </StackPanel>
+                        </GroupBox>
+
                         <GroupBox Header="System" Padding="8" Margin="0,0,0,12">
                             <StackPanel>
                                 <CheckBox Content="Keep Windows awake while monitoring"

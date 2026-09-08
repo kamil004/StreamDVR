@@ -3,11 +3,13 @@ import Foundation
 class StreamRecorder {
     private var process: Process?
     private var outputHandler: ((String) -> Void)?
+    private var completionHandler: ((String) -> Void)?
     private var isRunning = false
     private var fileHandle: FileHandle?
     private(set) var outputPath: String?
 
-    func startRecording(url: String, outputDir: String, accessToken: String?, platform: StreamPlatform, streamInfo: StreamInfo, completion: @escaping (String) -> Void) {
+    func startRecording(url: String, outputDir: String, channelName: String, accessToken: String?, platform: StreamPlatform, streamInfo: StreamInfo, completion: @escaping (String) -> Void) {
+        self.completionHandler = completion
         let streamlinkPath = findStreamlink()
         guard let path = streamlinkPath else {
             completion("Error: streamlink not found. Install with: brew install streamlink")
@@ -22,20 +24,13 @@ class StreamRecorder {
         formatter.dateFormat = "HH-mm-ss"
         let timeString = formatter.string(from: now)
 
-        let safeTitle = streamInfo.title
-            .replacingOccurrences(of: "/", with: "-")
-            .replacingOccurrences(of: ":", with: "-")
-            .replacingOccurrences(of: "\\", with: "-")
-            .replacingOccurrences(of: "\"", with: "")
-            .replacingOccurrences(of: "*", with: "")
-            .replacingOccurrences(of: "?", with: "")
-            .replacingOccurrences(of: "<", with: "")
-            .replacingOccurrences(of: ">", with: "")
-            .replacingOccurrences(of: "|", with: "-")
-            .trimmingCharacters(in: .whitespaces)
-        let finalTitle = safeTitle.isEmpty ? "stream" : safeTitle
+        let safeChannel = Self.sanitizeFilename(channelName)
+        let finalChannel = safeChannel.isEmpty ? "channel" : safeChannel
 
-        let filename = "\(dateString)_\(finalTitle)_\(timeString).ts"
+        let safeTitle = Self.sanitizeFilename(streamInfo.title)
+        let finalTitle = safeTitle.isEmpty ? "stream" : String(safeTitle.prefix(35))
+
+        let filename = "\(finalChannel)_\(dateString)-\(timeString)_\(finalTitle).ts"
         let outputPath = (outputDir as NSString).appendingPathComponent(filename)
         try? FileManager.default.createDirectory(atPath: outputDir, withIntermediateDirectories: true)
         self.outputPath = outputPath
@@ -121,9 +116,9 @@ class StreamRecorder {
                 self?.isRunning = false
                 pipe.fileHandleForReading.readabilityHandler = nil
                 if proc.terminationStatus == 0 || proc.terminationStatus == 1 {
-                    completion(outputPath)
+                    self?.complete(outputPath)
                 } else {
-                    completion("Recording stopped (exit code \(proc.terminationStatus))")
+                    self?.complete("Recording stopped (exit code \(proc.terminationStatus))")
                 }
             }
         }
@@ -147,6 +142,39 @@ class StreamRecorder {
             }
         }
         isRunning = false
+    }
+
+    /// Finalizes the recording: if the output file was created but no real data
+    /// ever arrived (some streams, e.g. very low bitrate starts, produce an
+    /// empty/header-only .ts), it is discarded instead of being left behind.
+    private func complete(_ output: String) {
+        guard let completion = completionHandler else { return }
+        if output.hasPrefix("Recording stopped") || output.hasPrefix("Error") {
+            completion(output)
+            return
+        }
+        if let path = self.outputPath,
+           let attrs = try? FileManager.default.attributesOfItem(atPath: path),
+           (attrs[.size] as? Int64 ?? 0) < 1024 {
+            try? FileManager.default.removeItem(atPath: path)
+            completion("discarded:\(path)")
+        } else {
+            completion(output)
+        }
+    }
+
+    static func sanitizeFilename(_ input: String) -> String {
+        input
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+            .replacingOccurrences(of: "\\", with: "-")
+            .replacingOccurrences(of: "\"", with: "")
+            .replacingOccurrences(of: "*", with: "")
+            .replacingOccurrences(of: "?", with: "")
+            .replacingOccurrences(of: "<", with: "")
+            .replacingOccurrences(of: ">", with: "")
+            .replacingOccurrences(of: "|", with: "-")
+            .trimmingCharacters(in: .whitespaces)
     }
 
     private func findStreamlink() -> String? {

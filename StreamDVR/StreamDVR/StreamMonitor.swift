@@ -169,18 +169,7 @@ class StreamMonitor: ObservableObject {
     }
 
     init() {
-        if let saved = ConfigStore.load(key: "channels"),
-           let data = saved.data(using: .utf8),
-           let decoded = try? JSONDecoder().decode([StreamChannel].self, from: data) {
-            channels = decoded
-        } else if let saved = ConfigStore.load(key: "twitch_channels") {
-            // Legacy Twitch-only storage (comma-separated logins).
-            let logins = saved.components(separatedBy: ",").filter { !$0.isEmpty }
-            channels = logins.map {
-                StreamChannel(id: "twitch:\($0)", login: $0, displayName: $0, platform: .twitch)
-            }
-            saveChannels()
-        }
+        loadChannels()
         if let dir = ConfigStore.load(key: "twitch_output_dir") {
             outputDirectory = dir
         }
@@ -579,12 +568,18 @@ class StreamMonitor: ObservableObject {
                 let channelDir = recordingDirectory(for: channel)
                 try? FileManager.default.createDirectory(atPath: channelDir, withIntermediateDirectories: true)
 
-                recorder.startRecording(url: url, outputDir: channelDir, accessToken: accessToken, platform: channel.platform, streamInfo: stream) { [weak self] output in
+                recorder.startRecording(url: url, outputDir: channelDir, channelName: channel.displayName, accessToken: accessToken, platform: channel.platform, streamInfo: stream) { [weak self] output in
                     Task { @MainActor in
-                        self?.addLog("Recording saved: \(output)", level: .success)
-                        self?.recordingStatuses[key] = .idle
-                        self?.recorders.removeValue(forKey: key)
-                        self?.updateDockBadge()
+                        guard let self = self else { return }
+                        if output.hasPrefix("discarded:") {
+                            let path = String(output.dropFirst("discarded:".count))
+                            self.addLog("Discarded empty recording (stream produced no data): \(path)", level: .warning)
+                        } else {
+                            self.addLog("Recording saved: \(output)", level: .success)
+                        }
+                        self.recordingStatuses[key] = .idle
+                        self.recorders.removeValue(forKey: key)
+                        self.updateDockBadge()
                     }
                 }
 
@@ -866,6 +861,65 @@ class StreamMonitor: ObservableObject {
            let json = String(data: data, encoding: .utf8) {
             ConfigStore.save(key: "channels", value: json)
         }
+    }
+
+    private func loadChannels() {
+        if let saved = ConfigStore.load(key: "channels"),
+           let data = saved.data(using: .utf8),
+           let decoded = try? JSONDecoder().decode([StreamChannel].self, from: data) {
+            channels = decoded
+        } else if let saved = ConfigStore.load(key: "twitch_channels") {
+            // Legacy Twitch-only storage (comma-separated logins).
+            let logins = saved.components(separatedBy: ",").filter { !$0.isEmpty }
+            channels = logins.map {
+                StreamChannel(id: "twitch:\($0)", login: $0, displayName: $0, platform: .twitch)
+            }
+            saveChannels()
+        }
+    }
+
+    func exportBackup(to url: URL) -> Bool {
+        guard let data = try? JSONSerialization.data(withJSONObject: ConfigStore.loadAll(), options: [.prettyPrinted, .sortedKeys]) else {
+            addLog("Backup failed: could not encode settings", level: .error)
+            return false
+        }
+        do {
+            try data.write(to: url)
+            addLog("Exported settings and channel list to \(url.lastPathComponent)", level: .success)
+            return true
+        } catch {
+            addLog("Backup failed: \(error.localizedDescription)", level: .error)
+            return false
+        }
+    }
+
+    @discardableResult
+    func importBackup(from url: URL) -> Bool {
+        guard let data = try? Data(contentsOf: url),
+              let dict = try? JSONDecoder().decode([String: String].self, from: data) else {
+            addLog("Restore failed: not a valid backup file", level: .error)
+            return false
+        }
+        ConfigStore.replaceAll(with: dict)
+        loadChannels()
+        if let dir = ConfigStore.load(key: "twitch_output_dir") {
+            outputDirectory = dir
+        }
+        let savedInterval = ConfigStore.load(key: "poll_interval").flatMap(TimeInterval.init) ?? 60
+        pollInterval = savedInterval > 0 ? savedInterval : 60
+        preventSleep = (ConfigStore.load(key: "prevent_sleep") ?? "1") == "1"
+        autoSortLive = (ConfigStore.load(key: "auto_sort_live") ?? "0") == "1"
+        liveNotifications = (ConfigStore.load(key: "live_notifications") ?? "1") == "1"
+        checkUpdates = (ConfigStore.load(key: "check_updates") ?? "1") == "1"
+        isKickLoggedIn = KickSession.isLoggedIn
+        refreshKickUsername()
+        Task {
+            await TwitchAPI.shared.reloadTokenFromStore()
+            isLoggedIn = await TwitchAPI.shared.isLoggedIn()
+            loggedInUsername = await TwitchAPI.shared.getUsername() ?? ""
+        }
+        addLog("Restored settings and channel list from backup", level: .success)
+        return true
     }
 
     func saveChannelOrder() {

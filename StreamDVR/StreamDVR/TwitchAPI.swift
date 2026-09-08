@@ -70,6 +70,11 @@ actor TwitchAPI {
         }
     }
 
+    func reloadTokenFromStore() {
+        accessToken = ConfigStore.load(key: "twitch_access_token")
+        loggedInUsername = ConfigStore.load(key: "twitch_username")
+    }
+
     func getAccessToken() -> String? { accessToken }
 
     func setUsername(_ username: String?) {
@@ -288,6 +293,14 @@ enum ConfigStore {
     static func delete(key: String) {
         var dict = loadDict()
         dict.removeValue(forKey: key)
+        saveDict(dict)
+    }
+
+    static func loadAll() -> [String: String] {
+        loadDict()
+    }
+
+    static func replaceAll(with dict: [String: String]) {
         saveDict(dict)
     }
 }

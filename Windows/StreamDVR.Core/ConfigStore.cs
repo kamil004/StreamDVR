@@ -60,4 +60,8 @@ public static class ConfigStore
         dict.Remove(key);
         SaveDict(dict);
     }
+
+    public static Dictionary<string, string> LoadAll() => LoadDict();
+
+    public static void ReplaceAll(Dictionary<string, string> dict) => SaveDict(dict);
 }

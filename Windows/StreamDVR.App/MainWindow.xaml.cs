@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Reflection;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -220,6 +221,45 @@ public partial class MainWindow : Window
         if (sender is not FrameworkElement fe) return;
         var item = (ChannelItem)fe.DataContext;
         Monitor.SetIgnored(item.Channel.Id, !item.Channel.IsIgnored);
+    }
+
+    void OnCreateBackup(object sender, RoutedEventArgs e)
+    {
+        var dlg = new SaveFileDialog
+        {
+            Filter = "JSON file (*.json)|*.json",
+            FileName = $"StreamDVR-backup-{DateTime.Now:yyyy-MM-dd}.json"
+        };
+        if (dlg.ShowDialog() != true) return;
+        try
+        {
+            var json = JsonSerializer.Serialize(Monitor.GetBackup(), new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(dlg.FileName, json);
+            MessageBox.Show($"Backup saved:\n{dlg.FileName}", "StreamDVR", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Backup failed: {ex.Message}", "StreamDVR", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    void OnRestoreBackup(object sender, RoutedEventArgs e)
+    {
+        var dlg = new OpenFileDialog { Filter = "JSON file (*.json)|*.json|All files (*.*)|*.*" };
+        if (dlg.ShowDialog() != true) return;
+        try
+        {
+            var json = File.ReadAllText(dlg.FileName);
+            var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+            if (dict == null) throw new InvalidOperationException("The file is empty or not a valid backup.");
+            var error = Monitor.ApplyBackup(dict);
+            if (error != null) throw new InvalidOperationException(error);
+            MessageBox.Show("Settings and channel list restored.", "StreamDVR", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Restore failed: {ex.Message}", "StreamDVR", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     void OnOpenChannelFolder(object sender, RoutedEventArgs e)

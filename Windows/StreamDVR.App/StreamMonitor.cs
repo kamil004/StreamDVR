@@ -388,6 +388,7 @@ public class StreamMonitor : INotifyPropertyChanged
             var result = StreamRecorder.Start(
                 url,
                 outputDir,
+                channel.DisplayName,
                 TwitchApi.AccessToken,
                 channel.Platform,
                 stream);
@@ -419,7 +420,14 @@ public class StreamMonitor : INotifyPropertyChanged
                 item.IsActive = false;
                 item.StatusText = "Idle";
                 item.StatsText = "";
-                AddLog($"Recording saved: {result.OutputPath}", isSuccess: true);
+                if (StreamRecorder.DeleteIfEmpty(result.OutputPath))
+                {
+                    AddLog($"Discarded empty recording (stream produced no data): {result.OutputPath}", isWarning: true);
+                }
+                else
+                {
+                    AddLog($"Recording saved: {result.OutputPath}", isSuccess: true);
+                }
                 OnPropertyChanged(nameof(HasActiveRecordings));
                 OnPropertyChanged(nameof(ActiveRecordingCount));
             });
@@ -737,6 +745,42 @@ public class StreamMonitor : INotifyPropertyChanged
             isIgnored = c.Channel.IsIgnored
         }).ToList();
         ConfigStore.Save("channels", JsonSerializer.Serialize(payload));
+    }
+
+    /// Captures all persisted settings plus the channel list for a backup file.
+    public Dictionary<string, string> GetBackup() => ConfigStore.LoadAll();
+
+    /// Restores settings plus the channel list from a backup dictionary.
+    /// Returns null on success, otherwise an error message.
+    public string? ApplyBackup(Dictionary<string, string> dict)
+    {
+        try
+        {
+            ConfigStore.ReplaceAll(dict);
+
+            Channels.Clear();
+            LoadChannels();
+
+            var dir = ConfigStore.Load("twitch_output_dir");
+            if (!string.IsNullOrEmpty(dir)) OutputDirectory = dir;
+
+            if (int.TryParse(ConfigStore.Load("poll_interval"), out var poll) && poll is 15 or 30 or 60 or 120)
+                PollIntervalSeconds = poll;
+
+            AutoSortLive = ConfigStore.Load("auto_sort_live") == "1";
+            PreventSleep = ConfigStore.Load("prevent_sleep") == "1";
+
+            OnlineCount = Channels.Count(c => !string.IsNullOrEmpty(c.Channel.CurrentStreamTitle));
+            OnPropertyChanged(nameof(OfflineCount));
+            OnPropertyChanged(nameof(IgnoredCount));
+
+            AddLog($"Restored settings and channel list ({Channels.Count} channels)", isSuccess: true);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            return ex.Message;
+        }
     }
 
     static bool ChannelIsLive(ChannelItem item) => !string.IsNullOrEmpty(item.Channel.CurrentStreamTitle);
