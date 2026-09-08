@@ -414,13 +414,19 @@ public class StreamMonitor : INotifyPropertyChanged
             try { result.Process?.WaitForExit(); }
             catch { }
 
+            var discarded = StreamRecorder.DeleteIfEmpty(result.OutputPath);
+            if (!discarded)
+            {
+                StreamRecorder.NormalizeStartIfNeeded(result.OutputPath);
+            }
+
             await UiAsync(() =>
             {
                 _recorders.Remove(channelId);
                 item.IsActive = false;
                 item.StatusText = "Idle";
                 item.StatsText = "";
-                if (StreamRecorder.DeleteIfEmpty(result.OutputPath))
+                if (discarded)
                 {
                     AddLog($"Discarded empty recording (stream produced no data): {result.OutputPath}", isWarning: true);
                 }

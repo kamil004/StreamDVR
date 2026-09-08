@@ -75,18 +75,7 @@ class StreamRecorder {
         proc.executableURL = URL(fileURLWithPath: path)
         proc.arguments = args
 
-        // GUI-launched apps have a minimal PATH without the Homebrew tool dirs.
-        // streamlink needs ffmpeg on PATH to use its ffmpeg muxer; without it,
-        // Chaturbate (LL-HLS/fMP4) recordings lose audio and keep the source
-        // stream's large base PTS (a long blank start). Expose the tool dirs.
-        var environment = ProcessInfo.processInfo.environment
-        let toolBins = ["/opt/homebrew/bin", "/usr/local/bin"]
-        if let currentPath = environment["PATH"] {
-            environment["PATH"] = (toolBins + [currentPath]).joined(separator: ":")
-        } else {
-            environment["PATH"] = (toolBins + ["/usr/bin", "/bin", "/usr/sbin", "/sbin"]).joined(separator: ":")
-        }
-        proc.environment = environment
+        proc.environment = Self.augmentedEnvironment()
 
         let pipe = Pipe()
         proc.standardOutput = pipe
@@ -147,20 +136,84 @@ class StreamRecorder {
     /// Finalizes the recording: if the output file was created but no real data
     /// ever arrived (some streams, e.g. very low bitrate starts, produce an
     /// empty/header-only .ts), it is discarded instead of being left behind.
+    /// Otherwise the file's base PTS is normalized to ~0 so players start at
+    /// 00:00 (some sources keep a large base timestamp, e.g. ~1h44m).
     private func complete(_ output: String) {
         guard let completion = completionHandler else { return }
         if output.hasPrefix("Recording stopped") || output.hasPrefix("Error") {
             completion(output)
             return
         }
-        if let path = self.outputPath,
-           let attrs = try? FileManager.default.attributesOfItem(atPath: path),
-           (attrs[.size] as? Int64 ?? 0) < 1024 {
+        guard let path = self.outputPath else {
+            completion(output)
+            return
+        }
+        let size = (try? FileManager.default.attributesOfItem(atPath: path)[.size] as? Int64) ?? -1
+        if FileManager.default.fileExists(atPath: path), size < 1024 {
             try? FileManager.default.removeItem(atPath: path)
             completion("discarded:\(path)")
-        } else {
-            completion(output)
+            return
         }
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            self?.normalizeStartTimeIfNeeded(path)
+            DispatchQueue.main.async {
+                completion(output)
+            }
+        }
+    }
+
+    /// If the recording's start timestamp is far from zero, remuxes it with
+    /// stream copy (fast, lossless) so players begin at 00:00.
+    private func normalizeStartTimeIfNeeded(_ path: String) {
+        guard let raw = Self.runProcess("ffprobe", ["-v", "error", "-show_entries", "format=start_time", "-of", "default=nw=1:nk=1", path]),
+              let start = Double(raw.trimmingCharacters(in: .whitespacesAndNewlines)),
+              start > 2.0 else { return }
+
+        let tmp = path + ".normalized"
+        Self.runProcess("ffmpeg", ["-y", "-v", "error", "-i", path, "-map", "0", "-c", "copy", tmp])
+        if FileManager.default.fileExists(atPath: tmp),
+           let size = try? FileManager.default.attributesOfItem(atPath: tmp)[.size] as? Int64,
+           size > 0 {
+            try? FileManager.default.removeItem(atPath: path)
+            try? FileManager.default.moveItem(atPath: tmp, toPath: path)
+        } else {
+            try? FileManager.default.removeItem(atPath: tmp)
+        }
+    }
+
+    /// Runs a tool found on PATH (ffprobe/ffmpeg from the Homebrew tool dirs)
+    /// and returns its captured stdout, or nil on failure.
+    private static func runProcess(_ tool: String, _ arguments: [String]) -> String? {
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        proc.arguments = [tool] + arguments
+        proc.environment = augmentedEnvironment()
+        let pipe = Pipe()
+        proc.standardOutput = pipe
+        proc.standardError = FileHandle.nullDevice
+        do {
+            try proc.run()
+        } catch {
+            return nil
+        }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        proc.waitUntilExit()
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// GUI-launched apps have a minimal PATH without the Homebrew tool dirs.
+    /// streamlink needs ffmpeg on PATH to use its ffmpeg muxer; without it,
+    /// Chaturbate (LL-HLS/fMP4) recordings lose audio and keep the source
+    /// stream's large base PTS (a long blank start). Expose the tool dirs.
+    private static func augmentedEnvironment() -> [String: String] {
+        var environment = ProcessInfo.processInfo.environment
+        let toolBins = ["/opt/homebrew/bin", "/usr/local/bin"]
+        if let currentPath = environment["PATH"] {
+            environment["PATH"] = (toolBins + [currentPath]).joined(separator: ":")
+        } else {
+            environment["PATH"] = (toolBins + ["/usr/bin", "/bin", "/usr/sbin", "/sbin"]).joined(separator: ":")
+        }
+        return environment
     }
 
     static func sanitizeFilename(_ input: String) -> String {

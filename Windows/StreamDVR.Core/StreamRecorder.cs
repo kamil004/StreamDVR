@@ -51,6 +51,76 @@ public static class StreamRecorder
         return FindOnPath("ffprobe");
     }
 
+    /// ffmpeg normally sits in the same bin dir as ffprobe (winget Gyan.FFmpeg).
+    public static string? FindFfmpeg()
+    {
+        foreach (var loc in FfprobeLocations)
+        {
+            var dir = Path.GetDirectoryName(ExpandWildcards(loc));
+            if (dir == null) continue;
+            var exe = Path.Combine(dir, "ffmpeg.exe");
+            if (File.Exists(exe)) return exe;
+        }
+        return FindOnPath("ffmpeg");
+    }
+
+    /// If the recording's start timestamp is far from zero, remuxes it with
+    /// stream copy (fast, lossless) so players begin at 00:00 instead of, e.g.,
+    /// ~1h44m (the source stream keeps a large base PTS for LL-HLS/fMP4).
+    public static void NormalizeStartIfNeeded(string path)
+    {
+        try
+        {
+            var info = new FileInfo(path);
+            if (!info.Exists || info.Length < 1024) return;
+
+            var ffprobe = FindFfprobe();
+            if (ffprobe == null) return;
+
+            var startRaw = RunTool(ffprobe, "-v", "error", "-show_entries", "format=start_time", "-of", "default=nw=1:nk=1", path);
+            if (!double.TryParse(startRaw?.Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var start))
+                return;
+            if (start <= 2.0) return;
+
+            var ffmpeg = FindFfmpeg();
+            if (ffmpeg == null) return;
+
+            var tmp = path + ".normalized";
+            RunTool(ffmpeg, "-y", "-v", "error", "-i", path, "-map", "0", "-c", "copy", tmp);
+            if (File.Exists(tmp) && new FileInfo(tmp).Length > 0)
+            {
+                File.Delete(path);
+                File.Move(tmp, path);
+            }
+            else
+            {
+                try { File.Delete(tmp); } catch { }
+            }
+        }
+        catch { }
+    }
+
+    private static string? RunTool(string exe, params string[] args)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo(exe)
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            foreach (var a in args) psi.ArgumentList.Add(a);
+            using var proc = Process.Start(psi);
+            if (proc == null) return null;
+            var outText = proc.StandardOutput.ReadToEnd();
+            proc.WaitForExit(600_000);
+            return outText;
+        }
+        catch { return null; }
+    }
+
     private static string ExpandWildcards(string path)
     {
         if (!path.Contains('*')) return path;
