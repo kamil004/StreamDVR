@@ -80,6 +80,19 @@ class StreamRecorder {
         proc.executableURL = URL(fileURLWithPath: path)
         proc.arguments = args
 
+        // GUI-launched apps have a minimal PATH without the Homebrew tool dirs.
+        // streamlink needs ffmpeg on PATH to use its ffmpeg muxer; without it,
+        // Chaturbate (LL-HLS/fMP4) recordings lose audio and keep the source
+        // stream's large base PTS (a long blank start). Expose the tool dirs.
+        var environment = ProcessInfo.processInfo.environment
+        let toolBins = ["/opt/homebrew/bin", "/usr/local/bin"]
+        if let currentPath = environment["PATH"] {
+            environment["PATH"] = (toolBins + [currentPath]).joined(separator: ":")
+        } else {
+            environment["PATH"] = (toolBins + ["/usr/bin", "/bin", "/usr/sbin", "/sbin"]).joined(separator: ":")
+        }
+        proc.environment = environment
+
         let pipe = Pipe()
         proc.standardOutput = pipe
         proc.standardError = pipe

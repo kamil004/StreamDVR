@@ -23,6 +23,56 @@ final class LiveNotificationDelegate: NSObject, UNUserNotificationCenterDelegate
     }
 }
 
+/// Draws the app icon plus a red count badge on the Dock tile.
+/// Used because NSDockTile.badgeLabel isn't rendered for this bundle id on this system,
+/// so we render the badge ourselves (same approach as DSFDockTile).
+final class DockBadgeView: NSView {
+    var count: Int = 0 {
+        didSet { needsDisplay = true }
+    }
+
+    override var isFlipped: Bool { false }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let b = bounds
+        if let icon = NSApp.applicationIconImage {
+            let s = b.size
+            let iconSize = icon.size
+            let scale = min(s.width / max(iconSize.width, 1), s.height / max(iconSize.height, 1))
+            let dw = iconSize.width * scale
+            let dh = iconSize.height * scale
+            let drect = NSRect(x: (s.width - dw) / 2, y: (s.height - dh) / 2, width: dw, height: dh)
+            icon.draw(in: drect, from: .zero, operation: .sourceOver, fraction: 1)
+        } else {
+            NSColor.windowBackgroundColor.setFill()
+            b.fill()
+        }
+
+        guard count > 0 else { return }
+
+        let text = "\(count)"
+        let fontSize = b.height * 0.40
+        let font = NSFont.boldSystemFont(ofSize: fontSize)
+        let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.white]
+        let size = text.size(withAttributes: attrs)
+        let padX = b.height * 0.12
+        let padY = b.height * 0.07
+        let badgeW = max(size.width + padX * 2, b.height * 0.40)
+        let badgeH = fontSize + padY * 2
+        let margin = b.width * 0.02
+        let badgeRect = NSRect(x: b.maxX - badgeW - margin,
+                               y: b.maxY - badgeH - margin,
+                               width: badgeW,
+                               height: badgeH)
+        NSColor.systemRed.setFill()
+        NSBezierPath(roundedRect: badgeRect, xRadius: badgeH / 2, yRadius: badgeH / 2).fill()
+
+        let tp = NSPoint(x: badgeRect.midX - size.width / 2,
+                         y: badgeRect.midY - size.height / 2)
+        (text as NSString).draw(at: tp, withAttributes: attrs)
+    }
+}
+
 @MainActor
 class StreamMonitor: ObservableObject {
     @Published var channels: [StreamChannel] = []
@@ -45,18 +95,21 @@ class StreamMonitor: ObservableObject {
     @Published var updateState: UpdateCheckState = .idle
     @Published var installingDependencies = false
 
-    /// Channels to display: when auto-sort is on, live channels first
-    /// (stable — relative order within each group is preserved) without
-    /// overwriting the user's manually-saved order.
+    /// Channels to display: when auto-sort is on, currently-recording channels
+    /// first, then live (but not recording), then the rest (stable — relative
+    /// order within each group is preserved) without overwriting the user's
+    /// manually-saved order.
     var sortedChannels: [StreamChannel] {
         guard autoSortLive else { return channels }
-        let live = channels.filter { !$0.currentStreamTitle.isEmpty }
-        let offline = channels.filter { $0.currentStreamTitle.isEmpty }
-        return live + offline
+        let recording = channels.filter { recorders[$0.id] != nil }
+        let live = channels.filter { recorders[$0.id] == nil && !$0.currentStreamTitle.isEmpty }
+        let offline = channels.filter { recorders[$0.id] == nil && $0.currentStreamTitle.isEmpty }
+        return recording + live + offline
     }
 
     private var statusTask: Task<Void, Never>?
     private var recorders: [String: StreamRecorder] = [:]
+    private var dockBadgeView: DockBadgeView?
     @Published var pollInterval: TimeInterval = 60
     private let sleepPreventer = SleepPreventer()
     private let notificationDelegate = LiveNotificationDelegate()
@@ -803,7 +856,15 @@ class StreamMonitor: ObservableObject {
     private func updateDockBadge() {
         let count = recorders.keys.count
         let tile = NSApp.dockTile
-        tile.badgeLabel = count > 0 ? "\(count)" : nil
+
+        if dockBadgeView == nil {
+            let view = DockBadgeView(frame: CGRect(origin: .zero, size: tile.size))
+            tile.contentView = view
+            dockBadgeView = view
+        }
+        dockBadgeView?.frame = CGRect(origin: .zero, size: tile.size)
+        dockBadgeView?.count = count
+        tile.display()
     }
 
     func addLog(_ message: String, level: LogEntry.Level = .info) {
