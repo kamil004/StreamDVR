@@ -8,6 +8,7 @@ enum RecordingStatus: Equatable {
     case idle
     case monitoring
     case recording(duration: TimeInterval)
+    case saving
     case error(String)
 
     var label: String {
@@ -15,6 +16,7 @@ enum RecordingStatus: Equatable {
         case .idle: return "Idle"
         case .monitoring: return "Monitoring..."
         case .recording(let d): return String(format: "Recording %02d:%02d:%02d", Int(d)/3600, Int(d)%3600/60, Int(d)%60)
+        case .saving: return "Saving..."
         case .error(let m): return "Error: \(m)"
         }
     }
@@ -23,6 +25,13 @@ enum RecordingStatus: Equatable {
         if case .recording = self { return true }
         return false
     }
+
+    var isSaving: Bool {
+        if case .saving = self { return true }
+        return false
+    }
+
+    var isBusy: Bool { isActive || isSaving }
 }
 
 struct StreamInfo {

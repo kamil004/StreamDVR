@@ -41,6 +41,9 @@ public class ChannelItem : INotifyPropertyChanged
     bool _isActive;
     public bool IsActive { get => _isActive; set { _isActive = value; OnPropertyChanged(); } }
 
+    bool _isSaving;
+    public bool IsSaving { get => _isSaving; set { _isSaving = value; OnPropertyChanged(); } }
+
     string _statsText = "";
     public string StatsText { get => _statsText; set { _statsText = value; OnPropertyChanged(); } }
 
@@ -414,21 +417,33 @@ public class StreamMonitor : INotifyPropertyChanged
             try { result.Process?.WaitForExit(); }
             catch { }
 
-            var discarded = StreamRecorder.DeleteIfEmpty(result.OutputPath);
-            if (!discarded)
+            await UiAsync(() =>
             {
-                StreamRecorder.NormalizeStartIfNeeded(result.OutputPath);
-            }
+                item.IsActive = false;
+                item.IsSaving = true;
+                item.StatusText = "Saving...";
+                item.StatsText = "";
+            });
+
+            var discarded = StreamRecorder.DeleteIfEmpty(result.OutputPath);
+            var mp4 = !discarded ? StreamRecorder.ConvertToMp4(result.OutputPath) : null;
 
             await UiAsync(() =>
             {
                 _recorders.Remove(channelId);
-                item.IsActive = false;
+                item.IsSaving = false;
                 item.StatusText = "Idle";
-                item.StatsText = "";
                 if (discarded)
                 {
                     AddLog($"Discarded empty recording (stream produced no data): {result.OutputPath}", isWarning: true);
+                }
+                else if (mp4?.StartsWith("ok:", StringComparison.Ordinal) == true)
+                {
+                    AddLog($"Converted to MP4 (plays from 00:00): {mp4["ok:".Length..]}", isSuccess: true);
+                }
+                else if (mp4 != null)
+                {
+                    AddLog($"MP4 conversion failed — kept original: {result.OutputPath}", isWarning: true);
                 }
                 else
                 {
@@ -449,7 +464,8 @@ public class StreamMonitor : INotifyPropertyChanged
         if (item != null)
         {
             item.IsActive = false;
-            item.StatusText = "Idle";
+            item.IsSaving = true;
+            item.StatusText = "Saving...";
             item.StatsText = "";
         }
         AddLog($"Stopped recording: {item?.Channel.Login ?? channelId}");
@@ -673,7 +689,8 @@ public class StreamMonitor : INotifyPropertyChanged
                     StreamRecorder.Stop(_recorders[channel.Id].Process);
                     _recorders.Remove(channel.Id);
                     item.IsActive = false;
-                    item.StatusText = "Idle";
+                    item.IsSaving = true;
+                    item.StatusText = "Saving...";
                     item.StatsText = "";
                     OnPropertyChanged(nameof(HasActiveRecordings));
                     OnPropertyChanged(nameof(ActiveRecordingCount));

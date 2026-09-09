@@ -15,6 +15,8 @@
         <local:SuccessGreenConverter x:Key="SuccessGreenConverter" />
         <local:LogForegroundConverter x:Key="LogForegroundConverter" />
         <local:BoolToRecordButtonTextConverter x:Key="BoolToRecordButtonTextConverter" />
+        <local:InverseBoolConverter x:Key="InverseBoolConverter" />
+        <local:StatusForegroundConverter x:Key="StatusForegroundConverter" />
     </Window.Resources>
 
     <DockPanel>
@@ -187,15 +189,27 @@
                                                            Foreground="{StaticResource AccentBrush}" />
                                             </StackPanel>
 
-                                            <StackPanel Grid.Column="3" Orientation="Vertical" VerticalAlignment="Center"
-                                                        Margin="12,0" MinWidth="180">
-                                                <TextBlock Text="{Binding StatusText}" FontSize="12"
-                                                           Foreground="{Binding IsActive, Converter={StaticResource BoolRedConverter}}" />
+<StackPanel Grid.Column="3" Orientation="Vertical" VerticalAlignment="Center"
+                                            Margin="12,0" MinWidth="180">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <ProgressBar Width="14" Height="14" IsIndeterminate="True"
+                                                                 Margin="0,0,6,0" VerticalAlignment="Center"
+                                                                 Visibility="{Binding IsSaving, Converter={StaticResource BoolVisConverter}}" />
+                                                    <TextBlock Text="{Binding StatusText}" FontSize="12" VerticalAlignment="Center">
+                                                        <TextBlock.Foreground>
+                                                            <MultiBinding Converter="{StaticResource StatusForegroundConverter}">
+                                                                <Binding Path="IsActive" />
+                                                                <Binding Path="IsSaving" />
+                                                            </MultiBinding>
+                                                        </TextBlock.Foreground>
+                                                    </TextBlock>
+                                                </StackPanel>
                                                 <TextBlock Text="{Binding StatsText}" FontSize="10" Foreground="Gray" />
                                             </StackPanel>
 
                                             <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
                                                 <ToggleButton x:Name="RecordToggle" IsChecked="{Binding IsActive}"
+                                                              IsEnabled="{Binding IsSaving, Converter={StaticResource InverseBoolConverter}}"
                                                               Width="60"
                                                               Content="{Binding IsActive, Converter={StaticResource BoolToRecordButtonTextConverter}}"
                                                               Style="{StaticResource RecordToggleStyle}"

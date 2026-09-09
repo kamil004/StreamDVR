@@ -478,15 +478,21 @@ class StreamMonitor: ObservableObject {
                 let script = """
                 #!/bin/bash
                 exec >> "\(logURL.path)" 2>&1
-                echo "=== StreamDVR updater $(date '+%F %T') ==="
-                echo "updating to v\(info.version) from \(newApp.path)"
-                while pgrep -x "StreamDVR" > /dev/null 2>&1; do sleep 0.5; done
-                echo "app exited, installing"
+                echo "=== StreamDVR updater pid $$ $(date '+%F %T') ==="
+                echo "launcher args: $0 -> update to v\(info.version) from \(newApp.path)"
+                echo "waiting for running app to exit..."
+                for _ in $(seq 1 60); do
+                    if ! pgrep -x "StreamDVR" > /dev/null 2>&1; then break; fi
+                    sleep 0.5
+                done
                 sleep 1
                 rm -rf /Applications/StreamDVR.app || { echo "rm /Applications/StreamDVR.app failed ($?)"; exit 1; }
                 /usr/bin/ditto "\(newApp.path)" /Applications/StreamDVR.app || { echo "ditto failed ($?)"; exit 1; }
                 echo "installed, relaunching"
-                /usr/bin/open /Applications/StreamDVR.app
+                sleep 1
+                nohup /usr/bin/open "/Applications/StreamDVR.app" > /dev/null 2>&1 &
+                disown 2>/dev/null || true
+                echo "open sent (bash wait finished)"
                 rm -rf "\(tempBase.path)"
                 echo "done"
                 """
@@ -506,7 +512,7 @@ class StreamMonitor: ObservableObject {
 
                 addLog("Update v\(info.version) downloaded — restarting", level: .success)
                 updateState = .idle
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                     NSApp.terminate(nil)
                 }
             } catch {
@@ -574,6 +580,12 @@ class StreamMonitor: ObservableObject {
                         if output.hasPrefix("discarded:") {
                             let path = String(output.dropFirst("discarded:".count))
                             self.addLog("Discarded empty recording (stream produced no data): \(path)", level: .warning)
+                        } else if output.hasPrefix("converted:") {
+                            let path = String(output.dropFirst("converted:".count))
+                            self.addLog("Converted to MP4 (plays from 00:00): \(path)", level: .success)
+                        } else if output.hasPrefix("convertfailed:") {
+                            let path = String(output.dropFirst("convertfailed:".count))
+                            self.addLog("MP4 conversion failed — kept original: \(path)", level: .warning)
                         } else {
                             self.addLog("Recording saved: \(output)", level: .success)
                         }
@@ -595,9 +607,8 @@ class StreamMonitor: ObservableObject {
         let key = channel.id
         if let recorder = recorders[key] {
             recorder.stop()
-            recorders.removeValue(forKey: key)
+            recordingStatuses[key] = .saving
         }
-        recordingStatuses[key] = .idle
         recordingInfo.removeValue(forKey: key)
         updateDockBadge()
         addLog("Stopped recording: \(channel.login)", level: .info)
@@ -615,8 +626,7 @@ class StreamMonitor: ObservableObject {
                 stopRecording(channel)
             } else {
                 recorders[key]?.stop()
-                recorders.removeValue(forKey: key)
-                recordingStatuses[key] = .idle
+                recordingStatuses[key] = .saving
                 recordingInfo.removeValue(forKey: key)
             }
         }
@@ -774,10 +784,10 @@ class StreamMonitor: ObservableObject {
                     }
                 }
 
-                if let s = status, s.isLive, isMonitoring, recordingStatuses[key]?.isActive != true {
+                if let s = status, s.isLive, isMonitoring, recordingStatuses[key]?.isBusy != true {
                     addLog("Stream went live: \(channel.login) - starting auto recording", level: .success)
                     startRecording(channel)
-                } else if let s = status, !s.isLive, recordingStatuses[key]?.isActive == true {
+                } else if let s = status, !s.isLive, recordingStatuses[key]?.isBusy == true {
                     addLog("Stream ended: \(channel.login)", level: .info)
                     recordingStatuses[key] = .idle
                     recordingInfo.removeValue(forKey: key)

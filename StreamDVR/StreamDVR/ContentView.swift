@@ -374,38 +374,50 @@ struct ChannelRowView: View {
 
             Spacer()
 
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(status.label)
-                    .font(.subheadline)
-                    .foregroundColor(status.isActive ? .red : .secondary)
-                if status.isActive, let info = monitor.recordingInfo[current.id] {
-                    Text(statsLine(info))
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .monospacedDigit()
+VStack(alignment: .trailing, spacing: 2) {
+                    HStack(spacing: 4) {
+                        if status.isSaving {
+                            ProgressView()
+                                .controlSize(.small)
+                                .tint(.orange)
+                        }
+                        Text(status.label)
+                            .font(.subheadline)
+                            .foregroundColor(status.isActive ? .red : status.isSaving ? .orange : .secondary)
+                    }
+                    if status.isActive, let info = monitor.recordingInfo[current.id] {
+                        Text(statsLine(info))
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .monospacedDigit()
+                    }
                 }
-            }
 
-            if status.isActive {
-                Circle()
-                    .fill(Color.red)
-                    .frame(width: 10, height: 10)
-                    .shadow(color: .red, radius: 4)
-            }
+                if status.isActive {
+                    Circle()
+                        .fill(Color.red)
+                        .frame(width: 10, height: 10)
+                        .shadow(color: .red, radius: 4)
+                } else if status.isSaving {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(.orange)
+                }
 
             HStack(spacing: 4) {
                 Button {
                     if status.isActive {
                         monitor.stopRecording(current)
-                    } else {
+                    } else if !status.isSaving {
                         monitor.startRecording(current)
                     }
                 } label: {
-                    Image(systemName: status.isActive ? "stop.fill" : "record.circle")
+                    Image(systemName: status.isActive ? "stop.fill" : (status.isSaving ? "folder.badge.gearshape" : "record.circle"))
                         .frame(width: 20, height: 20)
                 }
                 .buttonStyle(.borderless)
-                .help(status.isActive ? "Stop recording" : "Record now")
+                .help(status.isActive ? "Stop recording" : (status.isSaving ? "Saving..." : "Record now"))
+                .disabled(status.isSaving)
 
                 Button {
                     monitor.openRecordingFolder(for: current)

@@ -2,7 +2,6 @@ import Foundation
 
 class StreamRecorder {
     private var process: Process?
-    private var outputHandler: ((String) -> Void)?
     private var completionHandler: ((String) -> Void)?
     private var isRunning = false
     private var fileHandle: FileHandle?
@@ -81,23 +80,10 @@ class StreamRecorder {
         proc.standardOutput = pipe
         proc.standardError = pipe
 
-        pipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
-            let data = handle.availableData
-            if let str = String(data: data, encoding: .utf8) {
-                DispatchQueue.main.async {
-                    if str.contains("[info]") || str.contains("[stream]") || str.contains("[cli]") {
-                        // just ignore info lines
-                    }
-                    if str.contains("error") || str.contains("Error") {
-                        self?.outputHandler?("Streamlink error: \(str.trimmingCharacters(in: .whitespacesAndNewlines))")
-                    }
-                }
-            }
-        }
-
-        self.outputHandler = { output in
-            // File was saved
-            completion(output)
+        pipe.fileHandleForReading.readabilityHandler = { handle in
+            // Drain stdout/stderr so streamlink never blocks on a full pipe.
+            // Errors surface via the process exit status and finalization log.
+            _ = handle.availableData
         }
 
         proc.terminationHandler = { [weak self] proc in
@@ -140,11 +126,12 @@ class StreamRecorder {
     /// 00:00 (some sources keep a large base timestamp, e.g. ~1h44m).
     private func complete(_ output: String) {
         guard let completion = completionHandler else { return }
-        if output.hasPrefix("Recording stopped") || output.hasPrefix("Error") {
+        let stoppedOrFailed = output.hasPrefix("Recording stopped") || output.hasPrefix("Error")
+        guard let path = self.outputPath else {
             completion(output)
             return
         }
-        guard let path = self.outputPath else {
+        if stoppedOrFailed, !FileManager.default.fileExists(atPath: path) {
             completion(output)
             return
         }
@@ -154,35 +141,46 @@ class StreamRecorder {
             completion("discarded:\(path)")
             return
         }
-        DispatchQueue.global(qos: .utility).async { [weak self] in
-            self?.normalizeStartTimeIfNeeded(path)
+        DispatchQueue.global(qos: .utility).async {
+            let result = Self.finalizeToMp4(path, fallbackOutput: output)
             DispatchQueue.main.async {
-                completion(output)
+                completion(result)
             }
         }
     }
 
-    /// If the recording's start timestamp is far from zero, remuxes it with
-    /// stream copy (fast, lossless) so players begin at 00:00.
-    private func normalizeStartTimeIfNeeded(_ path: String) {
-        guard let raw = Self.runProcess("ffprobe", ["-v", "error", "-show_entries", "format=start_time", "-of", "default=nw=1:nk=1", path]),
-              let start = Double(raw.trimmingCharacters(in: .whitespacesAndNewlines)),
-              start > 2.0 else { return }
+    /// Converts a finished recording to MP4 with stream copy (fast, no
+    /// re-encoding): MP4 rebases timestamps so every player starts at 00:00.
+    /// Falls back to re-encoding only the audio if the copy is refused
+    /// (e.g. opus audio on LL-HLS), and keeps the original .ts on failure.
+    private static func finalizeToMp4(_ path: String, fallbackOutput: String) -> String {
+        guard path.hasSuffix(".ts") else { return fallbackOutput }
+        let mp4 = String(path.dropLast(3)) + ".mp4"
 
-        let tmp = path + ".normalized"
-        Self.runProcess("ffmpeg", ["-y", "-v", "error", "-i", path, "-map", "0", "-c", "copy", tmp])
-        if FileManager.default.fileExists(atPath: tmp),
-           let size = try? FileManager.default.attributesOfItem(atPath: tmp)[.size] as? Int64,
+        Self.runProcess("ffmpeg", ["-y", "-v", "error", "-i", path, "-map", "0", "-c", "copy", "-movflags", "+faststart", mp4])
+        if FileManager.default.fileExists(atPath: mp4),
+           let size = try? FileManager.default.attributesOfItem(atPath: mp4)[.size] as? Int64,
            size > 0 {
             try? FileManager.default.removeItem(atPath: path)
-            try? FileManager.default.moveItem(atPath: tmp, toPath: path)
-        } else {
-            try? FileManager.default.removeItem(atPath: tmp)
+            return "converted:\(mp4)"
         }
+        try? FileManager.default.removeItem(atPath: mp4)
+
+        // Fallback: transcode audio only (video stays copied).
+        Self.runProcess("ffmpeg", ["-y", "-v", "error", "-i", path, "-map", "0", "-c:v", "copy", "-c:a", "aac", "-movflags", "+faststart", mp4])
+        if FileManager.default.fileExists(atPath: mp4),
+           let size = try? FileManager.default.attributesOfItem(atPath: mp4)[.size] as? Int64,
+           size > 0 {
+            try? FileManager.default.removeItem(atPath: path)
+            return "converted:\(mp4)"
+        }
+        try? FileManager.default.removeItem(atPath: mp4)
+        return "convertfailed:\(path)"
     }
 
     /// Runs a tool found on PATH (ffprobe/ffmpeg from the Homebrew tool dirs)
     /// and returns its captured stdout, or nil on failure.
+    @discardableResult
     private static func runProcess(_ tool: String, _ arguments: [String]) -> String? {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/usr/bin/env")

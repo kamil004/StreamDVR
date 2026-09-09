@@ -67,37 +67,40 @@ public static class StreamRecorder
     /// If the recording's start timestamp is far from zero, remuxes it with
     /// stream copy (fast, lossless) so players begin at 00:00 instead of, e.g.,
     /// ~1h44m (the source stream keeps a large base PTS for LL-HLS/fMP4).
-    public static void NormalizeStartIfNeeded(string path)
+    public static string? ConvertToMp4(string path)
     {
         try
         {
             var info = new FileInfo(path);
-            if (!info.Exists || info.Length < 1024) return;
-
-            var ffprobe = FindFfprobe();
-            if (ffprobe == null) return;
-
-            var startRaw = RunTool(ffprobe, "-v", "error", "-show_entries", "format=start_time", "-of", "default=nw=1:nk=1", path);
-            if (!double.TryParse(startRaw?.Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var start))
-                return;
-            if (start <= 2.0) return;
+            if (!info.Exists || info.Length < 1024) return null;
+            if (!path.EndsWith(".ts", StringComparison.OrdinalIgnoreCase)) return null;
 
             var ffmpeg = FindFfmpeg();
-            if (ffmpeg == null) return;
+            if (ffmpeg == null) return "error:ffmpeg not found";
 
-            var tmp = path + ".normalized";
-            RunTool(ffmpeg, "-y", "-v", "error", "-i", path, "-map", "0", "-c", "copy", tmp);
-            if (File.Exists(tmp) && new FileInfo(tmp).Length > 0)
+            var mp4 = path[..^3] + ".mp4";
+
+            // Preferred: stream copy (fast, no re-encoding); MP4 rebases
+            // timestamps so players start at 00:00.
+            RunTool(ffmpeg, "-y", "-v", "error", "-i", path, "-map", "0", "-c", "copy", "-movflags", "+faststart", mp4);
+            if (File.Exists(mp4) && new FileInfo(mp4).Length > 0)
             {
                 File.Delete(path);
-                File.Move(tmp, path);
+                return $"ok:{mp4}";
             }
-            else
+            try { File.Delete(mp4); } catch { }
+
+            // Fallback: transcode audio only (video stays copied).
+            RunTool(ffmpeg, "-y", "-v", "error", "-i", path, "-map", "0", "-c:v", "copy", "-c:a", "aac", "-movflags", "+faststart", mp4);
+            if (File.Exists(mp4) && new FileInfo(mp4).Length > 0)
             {
-                try { File.Delete(tmp); } catch { }
+                File.Delete(path);
+                return $"ok:{mp4}";
             }
+            try { File.Delete(mp4); } catch { }
+            return "error:MP4 conversion failed";
         }
-        catch { }
+        catch { return null; }
     }
 
     private static string? RunTool(string exe, params string[] args)

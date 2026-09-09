@@ -13,6 +13,7 @@ icon.iconset/
 Windows/StreamDVR.exe
 Windows/StreamDVR-Windows*.zip
 Windows/.vs/
+Windows/publish/
 
 # Misc
 *.user

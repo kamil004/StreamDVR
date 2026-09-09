@@ -49,6 +49,32 @@ public class BoolToRecordButtonTextConverter : IValueConverter
         => throw new NotSupportedException();
 }
 
+public class InverseBoolConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => value is not true;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+public class StatusForegroundConverter : IMultiValueConverter
+{
+    private static readonly SolidColorBrush Red = new(Colors.Red);
+    private static readonly SolidColorBrush Orange = new(Color.FromRgb(0xE6, 0x8A, 0x00));
+    private static readonly SolidColorBrush Gray = new(Colors.Gray);
+
+    public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+    {
+        bool isActive = values.Length > 0 && values[0] is true;
+        bool isSaving = values.Length > 1 && values[1] is true;
+        return isActive ? Red : isSaving ? Orange : Gray;
+    }
+
+    public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
 public class ErrorRedConverter : IValueConverter
 {
     private static readonly SolidColorBrush Red = new(Colors.Red);
