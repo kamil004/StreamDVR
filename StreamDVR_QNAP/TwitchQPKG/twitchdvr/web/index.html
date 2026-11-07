@@ -1,0 +1,803 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stream DVR</title>
+<link rel="icon" type="image/png" href="/icon.png">
+<link rel="apple-touch-icon" href="/icon.png">
+<style>
+  :root {
+    --bg:#0f1117; --card:#161a22; --line:#262c3a; --fg:#e8ebf2; --mut:#8a93a6;
+    --acc:#7c5cff; --acc2:#6a47ff; --ok:#2ec27e; --live:#ff4d6d; --warn:#f4b942;
+  }
+  * { box-sizing:border-box; }
+  html,body { margin:0; padding:0; }
+  body { font:14px/1.45 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--fg); min-height:100vh; }
+  button { padding:8px 12px; border:0; border-radius:8px; background:var(--acc); color:#fff; cursor:pointer; font-weight:600; font-size:12px; transition:filter .15s, opacity .15s; }
+  button:hover { filter:brightness(1.12); }
+  button:disabled { opacity:.45; cursor:default; filter:none; }
+  button.ghost { background:#222838; color:var(--fg); }
+  button.ghost.active { background:#1d1a33; color:var(--acc); box-shadow:inset 0 0 0 1px #463d7a; }
+  button.ghost.off { background:#3a1522; color:#ff8fa3; }
+  button.danger { background:#3a1522; color:#ff8fa3; }
+  input[type=text], input[type=password], select {
+    padding:9px 12px; border:1px solid var(--line); border-radius:8px; background:#0d0f14; color:var(--fg); font-size:13px;
+  }
+  input[type=text], input[type=password] { flex:1; min-width:160px; }
+  input[type=text] { font-family:ui-monospace,Menlo,monospace; font-size:12px; }
+  select { cursor:pointer; }
+  .badge { display:inline-flex; align-items:center; gap:5px; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; }
+  .b-live { background:#10291d; color:var(--ok); }           /* LIVE = online (zielony) */
+  .b-off { background:#171c26; color:var(--mut); }
+  .b-rec { background:#33111c; color:var(--live); }          /* NAGRYWANIE = czerwony puls */
+  .b-rec .dot { width:8px; height:8px; border-radius:50%; background:var(--live); animation:blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity:.25; } }
+  .b-conf { background:#16223a; color:var(--acc); }
+  .rec-time { font-family:ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums; }
+  .b-paused { background:#2b2410; color:var(--warn); }
+  .spinner { width:10px; height:10px; border:2px solid currentColor; border-top-color:transparent; border-radius:50%; animation:spin .8s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .mut { color:var(--mut); }
+  .ok { color:var(--ok); } .warn { color:var(--warn); } .err { color:var(--live); }
+  .small { font-size:12px; color:var(--mut); }
+
+  /* Header */
+  .header { position:sticky; top:0; z-index:20; display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:12px 22px; background:#12141c; border-bottom:1px solid var(--line); }
+  .header .logo { font-size:18px; font-weight:800; display:flex; align-items:center; gap:10px; }
+  .header .logo img { width:34px; height:34px; border-radius:8px; }
+  .header .sub { color:var(--mut); font-size:12px; }
+  .header .sub2 { color:var(--mut); font-size:13px; font-weight:600; }
+  .header .ver { font-size:12px; font-weight:700; color:var(--acc); background:#1d1a33; border:1px solid #322a55; padding:2px 8px; border-radius:999px; }
+  .header .sep { color:#3d4460; font-size:16px; font-weight:900; padding:0 2px; }
+  .header .right { margin-left:auto; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+
+  /* Main */
+  .app { max-width:1500px; width:100%; margin:0 auto; padding:20px 22px 60px; }
+
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .hidden { display:none !important; }
+  .hint { color:var(--mut); font-size:12px; margin-top:8px; }
+  .errbox { display:none; margin-top:8px; padding:8px 10px; border:1px solid #4a1f2c; background:#2a121c; color:#ffa5b6; border-radius:8px; font-size:12px; }
+  .errbox.shown { display:block; }
+  .loginState { display:flex; align-items:center; gap:8px; font-weight:600; }
+  .loginState.hidden { display:none; }
+  .eye { background:#222838; color:var(--fg); padding:8px 11px; flex:0 0 auto; }
+  .lgin { width:34px; height:34px; padding:0; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; background:#222838; border:2px solid var(--line); transition:filter .15s, border-color .15s; }
+  .lgin img { width:22px; height:22px; border-radius:50%; object-fit:cover; }
+  .lgin.off { border-color:var(--live); color:var(--live); }
+  .lgin.on { background:#10291d; border-color:var(--ok); }
+  .lgin:hover { filter:brightness(1.2); }
+  .platbtn { background:#222838; color:var(--mut); }
+  .platbtn.active { background:var(--acc); color:#fff; }
+  .platwrap { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .platwrap .platbtn { border:0; border-radius:0; padding:8px 13px; font-size:12px; font-weight:700; }
+  .platwrap .platbtn.plat-twitch { color:#c3adff; background:#1b1630; }
+  .platwrap .platbtn.plat-kick   { color:#b9f3a3; background:#112016; }
+  .platwrap .platbtn.plat-chat   { color:#ffc891; background:#241805; }
+  .platwrap .platbtn.plat-twitch.active { background:#9146ff; color:#fff; box-shadow:inset 0 0 0 1px #a66cff; }
+  .platwrap .platbtn.plat-kick.active   { background:#53fc18; color:#0c1a05; box-shadow:inset 0 0 0 1px #7dff4d; }
+  .platwrap .platbtn.plat-chat.active   { background:#ff8c00; color:#1c1103; box-shadow:inset 0 0 0 1px #ffa94d; }
+  .platwrap .platbtn.plat-all          { color:var(--fg); background:#222838; font-weight:700; padding:8px 12px; }
+  .platwrap .platbtn.plat-all.active   { background:var(--fg); color:var(--bg); box-shadow:inset 0 0 0 1px #eaf0ff; }
+
+  /* Channel cards (horizontal) */
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  .card h2 { margin:0 0 12px; font-size:14px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .chans { display:flex; flex-direction:column; gap:10px; margin-top:12px; }
+  .chan { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 16px; display:flex; flex-direction:column; gap:10px; }
+  .chan .avatar { width:40px; height:40px; border-radius:50%; flex:0 0 auto; object-fit:cover; background:#222838; box-sizing:border-box; }
+  .chan .avatar.plat-twitch { border:2px solid #9146ff; }
+  .chan .avatar.plat-kick { border:2px solid #53fc18; }
+  .chan .avatar.plat-chat { border:2px solid #ff8c00; }
+  .chan .avatar.letter { display:flex; align-items:center; justify-content:center; font-weight:800; font-size:16px; color:var(--acc2); }
+  .chan .r1 { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .chan .nick { font-size:16px; font-weight:700; white-space:nowrap; color:var(--fg); text-decoration:none; cursor:pointer; }
+  .chan .nick:hover { color:var(--acc); text-decoration:underline; }
+  
+  .chan .title { color:var(--mut); font-size:12px; flex:1; min-width:140px; }
+  .chan .badges { display:flex; gap:6px; flex-wrap:wrap; }
+  .chan .actions { display:flex; gap:6px; flex-wrap:wrap; }
+  .chan .log { font:11px/1.5 ui-monospace,Menlo,monospace; color:var(--mut); background:#0a0c10; border:1px solid var(--line); border-radius:8px; padding:8px 10px; min-height:28px; white-space:pre-wrap; word-break:break-all; max-height:110px; overflow:auto; }
+  .empty { border:1px dashed var(--line); border-radius:12px; padding:30px; text-align:center; color:var(--mut); margin-top:12px; }
+
+  /* Settings lock (only the Settings panel is password-protected) */
+  .lockbox { border:1px solid #2b2444; background:#1a1630; border-radius:12px; padding:16px; }
+  .lockbox .lockrow { display:flex; gap:8px; flex-wrap:wrap; }
+  .lockbox .lockrow input { flex:1; min-width:180px; }
+  .lbl { font-size:13px; font-weight:700; display:flex; align-items:center; gap:8px; margin:0 0 8px; }
+  .lockicon-s { font-size:16px; }
+
+  /* Settings modal */
+  .overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:50; padding:16px; }
+  .overlay.open { display:flex; }
+  .modal { background:var(--card); border:1px solid var(--line); border-radius:14px; width:min(1000px,96vw); max-height:92vh; overflow:auto; padding:20px 26px; }
+  .modal h2 { margin:0 0 4px; font-size:16px; }
+  .modal .close { float:right; background:none; border:1px solid var(--line); color:var(--mut); }
+  .mhint { color:var(--mut); font-size:12px; margin-top:6px; line-height:1.5; }
+  .msep { height:1px; background:var(--line); margin:16px 0; }
+
+  /* Log */
+  #log { height:220px; overflow:auto; background:#0a0c10; border:1px solid var(--line); border-radius:8px; padding:10px; font:12px/1.5 ui-monospace,Menlo,monospace; white-space:pre-wrap; margin-top:10px; }
+  #log div { border-bottom:1px solid #161a22; padding:1px 0; }
+
+  @media (max-width:640px) {
+    .app { padding:14px 12px 40px; }
+    .header { padding:10px 12px; gap:8px; }
+    .header .logo img { width:28px; height:28px; }
+    .chan .actions button { flex:1; }
+  }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="logo"><img src="/icon.png" alt=""><span>Stream DVR</span><span id="appver" class="ver"></span><span class="sep">›</span><span class="sub2">panel nagrywania</span><span class="sep">·</span><span class="sub2" id="diskFreeInfo"></span></div>
+  <div class="right">
+    <button id="loginIcon" class="lgin off" title="Twitch: brak tokenu" aria-label="Logowanie Twitch"><img src="/twitch_favicon.png" alt="Twitch"></button>
+    <button id="kickIcon" class="lgin off" title="Kick: brak zalogowania" aria-label="Logowanie Kick"><img src="/kick_favicon.png" alt="Kick"></button>
+    <button id="notifyBtn" class="ghost" title="Powiadomienie w przeglądarce, gdy kanał stanie się online" aria-label="Powiadomienia o kanale online">🔔 Powiadomienia</button>
+    <button id="settingsBtn" class="ghost">Ustawienia</button>
+    <span id="appinfo" class="small"></span>
+  </div>
+</header>
+
+<main class="app">
+
+  <div class="card">
+<h2>Dodaj nowy kanał</h2>
+      <div class="row">
+        <div class="platwrap" id="platWrap">
+          <button type="button" class="platbtn plat-all" id="platAll" data-plat="all" title="Wszystkie kanały" aria-label="Pokaż wszystkie kanały">☰</button>
+          <button type="button" class="platbtn plat-twitch" id="platTwitch" data-plat="twitch">Twitch</button>
+          <button type="button" class="platbtn plat-kick" id="platKick" data-plat="kick">Kick</button>
+          <button type="button" class="platbtn plat-chat" id="platChaturbate" data-plat="chaturbate">Chaturbate</button>
+        </div>
+        <input type="text" id="chanInput" placeholder="Wklej pełny adres kanału lub wybierz typ i wpisz nick">
+        <button id="addBtn">Dodaj</button>
+      </div>
+    <div class="errbox" id="chanErr"></div>
+    <div class="hint">Zawsze nagrywana jest <b>najlepsza dostępna jakość</b> (HLS master.m3u8 → źródło / najwyższa rozdzielczość).</div>
+    <div id="nochans" class="empty">Brak kanałów — dodaj nazwę lub adres powyżej.</div>
+    <div class="chans" id="chans"></div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h2>Logi
+      <button id="scrollToggle" class="ghost" style="margin-left:auto" title="Zatrzymaj / przywróć automatyczne przewijanie logu">⏸ Autoscroll</button>
+    </h2>
+    <div id="log"></div>
+  </div>
+
+</main>
+
+<!-- Settings modal -->
+<div class="overlay" id="settingsOv">
+  <div class="modal">
+    <button class="close" id="settingsClose">✕</button>
+    <h2>Ustawienia</h2>
+    <div class="msep"></div>
+
+    <!-- Shown when the Settings are password-locked; the panel stays usable -->
+    <div class="lockbox hidden" id="settingsLockBox">
+      <div class="lbl"><span class="lockicon-s">🔒</span> Ustawienia zablokowane</div>
+      <p class="mhint" style="margin:0 0 10px">Panel nagrywania działa normalnie. Aby edytować tokeny Twitch/Kick i ustawienia, podaj hasło administratora.</p>
+      <div class="lockrow">
+        <input type="password" id="setUnlockInput" autocomplete="current-password" placeholder="Hasło administratora">
+        <button id="setUnlockBtn">Odblokuj</button>
+      </div>
+      <div class="errbox" id="setUnlockErr"></div>
+    </div>
+
+    <div id="settingsBody">
+      <h3 style="margin:0 0 10px;font-size:13px">Hasło panelu</h3>
+      <div class="row">
+        <input type="password" id="pwCurrent" class="hidden" autocomplete="current-password" placeholder="Obecne hasło">
+        <input type="password" id="pwInput" autocomplete="new-password" placeholder="Nowe hasło (min. 4 znaki)">
+        <button id="pwBtn">Ustaw hasło</button>
+      </div>
+      <div class="errbox" id="pwErr"></div>
+      <div class="row" style="margin-top:8px">
+        <button id="lockNowBtn" class="ghost">Zablokuj ustawienia teraz</button>
+      </div>
+      <div class="mhint">Hasło nie jest nigdzie przechowywane, a klucz (wyprowadzany z hasła) istnieje tylko w pamięci i <b>nigdy nie jest zapisywany ani wyświetlany w panelu</b> — opis AES-256-GCM/PBKDF2 to tylko nazwa mechanizmu. Po ustawieniu hasła tokeny Twitch/Kick trafiają zaszyfrowane (<b>AES-256-GCM</b>, klucz PBKDF2) w pliku <span class="mut">settings.enc</span> zamiast do otwartego <span class="mut">config.json</span>. Po restarcie QNAP ustawienia wracają do stanu zablokowanego — bez hasła nikt nie odczyta tokenu ani zmieni ustawień. <b>Nagrywanie i kanały działają dalej bez hasła.</b></div>
+
+      <div class="msep"></div>
+
+      <h3 style="margin:0 0 10px;font-size:13px">Logowanie Twitch</h3>
+      <div class="row" id="loginForm">
+        <input type="password" id="tokenInput" autocomplete="off" placeholder="Auth token (ciasteczko auth-token)">
+        <button type="button" class="eye" id="eyeBtn" title="Pokaż / ukryj token">👁</button>
+        <button id="loginBtn">Zaloguj</button>
+      </div>
+      <div class="loginState hidden" id="loginStatus">
+        <span class="badge b-live">● Zalogowano jako <b id="userName"></b></span>
+        <button id="logoutBtn" class="ghost">Wyloguj</button>
+      </div>
+      <div class="errbox" id="loginErr"></div>
+      <div class="mhint">twitch.tv → F12 (DevTools) → <b>Application</b> → <b>Cookies</b> → <b>twitch.tv</b> → skopiuj wartość <b>auth-token</b>. Przycisk 👁 pokazuje wklejony token, żeby można było sprawdzić, czy jest kompletny.</div>
+
+      <div class="msep"></div>
+
+      <h3 style="margin:0 0 10px;font-size:13px">Logowanie Kick</h3>
+      <div class="row" id="kickLoginForm">
+        <input type="password" id="kickTokenInput" autocomplete="off" placeholder="Wklej CAŁĄ linię ciasteczek cookie (k=w; k2=w2; …)">
+        <button type="button" class="eye" id="kickEyeBtn" title="Pokaż / ukryj token">👁</button>
+        <button id="kickLoginBtn">Zaloguj</button>
+        <button type="button" id="kickOpenBtn" class="ghost" title="Otwórz kick.com w nowym oknie">Otwórz kick.com</button>
+      </div>
+      <div class="loginState hidden" id="kickLoginStatus">
+        <span class="badge b-live">● Zalogowano jako <b id="kickUserName"></b></span>
+        <button id="kickLogoutBtn" class="ghost">Wyloguj</button>
+      </div>
+      <div class="errbox" id="kickLoginErr"></div>
+      <div class="mhint">Zaloguj się na kick.com w oknie, które otworzy przycisk <b>Otwórz kick.com</b> (przeglądarka nie może automatycznie odczytać ciasteczek kick.com — stąd ręczne kopiowanie). Potem: F12 (DevTools) → <b>Network</b> → kliknij dowolny request do <b>kick.com</b> → <b>Request Headers</b> → kliknij prawym na <b>cookie:</b> → Copy value → wklej tutaj <b>CAŁĄ linię</b> (np. <span class="mut">session_token=...; kick_session_id=...; kick_session=...; __session=...</span>). Każda para <b>nazwa=wartość</b> musi zostać. Logowanie jest opcjonalne — nagrywanie działa też bez niego, a usługa sama wyśle ciasteczka w zapytaniach do kick.com.</div>
+
+      <div class="msep"></div>
+
+      <h3 style="margin:0 0 10px;font-size:13px">Monitorowanie</h3>
+      <div class="row">
+        <label class="small" for="pollSelSet">Sprawdzaj co</label>
+        <select id="pollSelSet">
+          <option value="15">15 s</option>
+          <option value="30">30 s</option>
+          <option value="60">60 s</option>
+          <option value="120">120 s</option>
+        </select>
+      </div>
+      <div class="mhint">Częstotliwość sprawdzania listy kanałów w poszukiwaniu nowych strimów.</div>
+
+      <div class="msep"></div>
+
+      <h3 style="margin:0 0 10px;font-size:13px">Zapis nagrań</h3>
+      <div class="row">
+        <input type="text" id="outDirInput" placeholder="/share/Public/StreamDVR">
+        <button id="outDirBtn" class="ghost">Zmień folder</button>
+      </div>
+      <div class="mhint">Nagrania trafiają do podfolderu z nazwą kanału. <span id="ffmpegInfo" class="warn"></span></div>
+
+      <div class="msep"></div>
+
+      <h3 style="margin:0 0 10px;font-size:13px">Kopia zapasowa / import</h3>
+      <div class="row">
+        <button id="exportBtn" class="ghost">Pobierz kopię (JSON)</button>
+        <button id="importBtn" class="ghost">Importuj z pliku…</button>
+        <input type="file" id="importFile" accept="application/json,.json" class="hidden">
+      </div>
+      <div class="errbox" id="importErr"></div>
+      <div class="mhint">Kopia zawiera listę kanałów, tokeny, oraz ścieżkę zapisu. Przywrócenie nadpisuje obecne ustawienia.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+let status = { logged_in:false, username:"", channels:[] };
+const $ = id => document.getElementById(id);
+
+// "Autoscroll" toggle. When ON the log follows the newest line; when OFF the
+// log keeps its current snapshot — nothing re-renders or moves until the user
+// turns auto-scroll back on.
+const logBox = $('log');
+let autoScroll = localStorage.getItem('svr_autoscroll') !== 'off';
+let lastLog = null;
+let logSeeded = false;
+function renderLog(lines) {
+  lastLog = lines;
+  logBox.innerHTML = '';
+  for (const line of lines.slice(-80)) {
+    const d = document.createElement('div');
+    d.textContent = line;
+    logBox.appendChild(d);
+  }
+}
+function paintScrollBtn() {
+  $('scrollToggle').textContent = autoScroll ? '⏸ Autoscroll' : '▶ Autoscroll';
+  $('scrollToggle').classList.toggle('off', !autoScroll);
+}
+$('scrollToggle').addEventListener('click', () => {
+  autoScroll = !autoScroll;
+  localStorage.setItem('svr_autoscroll', autoScroll ? 'on' : 'off');
+  paintScrollBtn();
+  if (autoScroll) {
+    if (lastLog) renderLog(lastLog);
+    logBox.scrollTop = logBox.scrollHeight;
+  }
+});
+paintScrollBtn();
+
+function fmtBytes(n) {
+  if (n < 1024) return n + ' B';
+  const u = ['KB','MB','GB','TB']; let i = -1;
+  do { n /= 1024; i++; } while (n >= 1024 && i < u.length-1);
+  return n.toFixed(1) + ' ' + u[i];
+}
+
+function clientId() {
+  let v = localStorage.getItem('sdv_id');
+  if (!v) {
+    v = (crypto.randomUUID ? crypto.randomUUID() : ('id' + Math.random().toString(36).slice(2) + Date.now().toString(36)));
+    localStorage.setItem('sdv_id', v);
+  }
+  return v;
+}
+
+async function tryOpenSettings() {
+  if (status.settings_locked) {
+    const r = await api('/api/settings/tap', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({client: clientId()})});
+    if (r && r.ok === false) {
+      alert(r.error || 'Zbyt wiele prób. Odczekaj chwilę.');
+      return;
+    }
+  }
+  $('setUnlockErr').classList.remove('shown');
+  settingsOpen();
+}
+
+const settingsOpen = () => $('settingsOv').classList.add('open');
+$('settingsBtn').addEventListener('click', tryOpenSettings);
+$('loginIcon').addEventListener('click', tryOpenSettings);
+$('kickIcon').addEventListener('click', tryOpenSettings);
+async function closeSettings() {
+  $('settingsOv').classList.remove('open');
+  // re-lock the Settings so the next open asks for the admin password again
+  if (status.admin_pw) {
+    await api('/api/lock', {method:'POST'});
+    await refresh();
+  }
+}
+$('settingsClose').addEventListener('click', closeSettings);
+$('settingsOv').addEventListener('click', e => { if (e.target === $('settingsOv')) closeSettings(); });
+
+$('eyeBtn').addEventListener('click', () => {
+  const inp = $('tokenInput');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+  $('eyeBtn').textContent = inp.type === 'password' ? '👁' : '🙈';
+});
+
+$('loginBtn').addEventListener('click', login);
+$('logoutBtn').addEventListener('click', async () => { await api('/api/logout',{method:'POST'}); refresh(true); });
+$('kickEyeBtn').addEventListener('click', () => {
+  const inp = $('kickTokenInput');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+  $('kickEyeBtn').textContent = inp.type === 'password' ? '👁' : '🙈';
+});
+$('kickOpenBtn').addEventListener('click', () => window.open('https://kick.com', '_blank'));
+$('kickLoginBtn').addEventListener('click', kickLogin);
+$('kickLogoutBtn').addEventListener('click', async () => {
+  const r = await api('/api/kick/logout',{method:'POST'});
+  if (r.error) alert('Błąd: ' + r.error);
+  refresh(true);
+});
+$('kickTokenInput').addEventListener('keydown', e => { if (e.key==='Enter') kickLogin(); });
+$('outDirBtn').addEventListener('click', saveOutDir);
+
+$('exportBtn').addEventListener('click', async () => {
+  showErr($('importErr'), '');
+  try {
+    const r = await fetch('/api/export');
+    if (!r.ok) throw new Error((await r.json()).error || 'export failed');
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'streamdvr-settings.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
+  } catch (e) { showErr($('importErr'), 'Błąd eksportu: ' + e.message); }
+});
+
+$('importBtn').addEventListener('click', () => $('importFile').click());
+$('importFile').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  showErr($('importErr'), '');
+  const text = await file.text();
+  const r = await api('/api/import', {method:'POST', headers:{'Content-Type':'application/json'}, body: text});
+  if (r.error) { showErr($('importErr'), 'Błąd importu: ' + r.error); return; }
+  await refresh(true);
+});
+$('addBtn').addEventListener('click', addChannel);
+$('chanInput').addEventListener('keydown', e => { if (e.key==='Enter') addChannel(); });
+$('chanInput').addEventListener('input', () => {
+  const v = $('chanInput').value.trim().toLowerCase();
+  if (v.includes('kick.com') || v.includes('kick.tv')) setPlat('kick');
+  else if (v.includes('chaturbate.com')) setPlat('chaturbate');
+  else if (v.includes('twitch.tv') || v.includes('twitch.com')) setPlat('twitch');
+});
+const $platBtn = p => document.querySelector('.platbtn[data-plat="'+p+'"]');
+function paintPlat() {
+  document.querySelectorAll('.platbtn').forEach(b => b.classList.toggle('active', b.dataset.plat === filter));
+}
+function setPlat(p) { plat = p; }
+function setFilter(p) { filter = p; paintPlat(); render(); }
+let plat = 'twitch';
+let filter = 'all';
+['twitch','kick','chaturbate'].forEach(p => $platBtn(p).addEventListener('click', () => { setPlat(p); setFilter(p); }));
+$('platAll').addEventListener('click', () => setFilter('all'));
+paintPlat();
+
+// Browser notifications when a channel goes online.
+let notifyOn = localStorage.getItem('svr_notify') === 'on';
+const notifyBtn = $('notifyBtn');
+function notifyBlockReason() {
+  if (!('Notification' in window)) return 'Ta przeglądarka nie wspiera powiadomień.';
+  if (!window.isSecureContext) return 'Przeglądarka blokuje powiadomienia na stronach HTTP (niezabezpieczonych). Aby je włączyć, otwórz panel przez HTTPS (np. certyfikat/reverse proxy w QNAP) — wtedy ten przycisk zacznie działać.';
+  return '';
+}
+function paintNotify() {
+  notifyBtn.textContent = '🔔 Powiadomienia';
+  notifyBtn.classList.toggle('active', notifyOn);
+  notifyBtn.classList.toggle('off', !notifyOn);
+  notifyBtn.title = notifyBlockReason() || (notifyOn ? 'Powiadomienia włączone — przeglądarka poinformuje, gdy kanał stanie się online' : 'Powiadomienie, gdy kanał stanie się online');
+}
+notifyBtn.addEventListener('click', async () => {
+  const why = notifyBlockReason();
+  if (why) { alert(why); return; }
+  if (!notifyOn) {
+    let perm = Notification.permission;
+    if (perm === 'default') perm = await Notification.requestPermission();
+    if (perm !== 'granted') {
+      alert('Powiadomienia zablokowane — w pasku adresu otwórz „Ustawienia witryny" i zmień Powiadomienia na „Zezwalaj", potem kliknij ten przycisk ponownie.');
+      return;
+    }
+    notifyOn = true;
+    localStorage.setItem('svr_notify', 'on');
+  } else {
+    notifyOn = false;
+    localStorage.setItem('svr_notify', 'off');
+  }
+  paintNotify();
+});
+paintNotify();
+// prevLive tracks the last polled live state; a notification fires only when a
+// channel transitions offline → online (never right after loading the page).
+let prevLive = {};
+function checkLiveNotifications(channels) {
+  if (!notifyOn || !('Notification' in window) || Notification.permission !== 'granted') return;
+  const seen = {};
+  for (const c of channels) {
+    seen[c.login] = !!c.live;
+    if (prevLive._init && !prevLive[c.login] && c.live) {
+      const body = c.title ? c.login + ' — ' + c.title : c.login;
+      try { new Notification('Stream DVR: ' + c.login + ' online', { body: body, tag: 'online-' + c.login }); } catch (e) {}
+    }
+  }
+  seen._init = true;
+  prevLive = seen;
+}
+$('tokenInput').addEventListener('keydown', e => { if (e.key==='Enter') login(); });
+$('pollSelSet').addEventListener('change', async e => {
+  const r = await api('/api/poll', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({sec:+e.target.value})});
+  if (r.error) alert('Błąd: ' + r.error);
+  refresh();
+});
+
+$('setUnlockBtn').addEventListener('click', unlockSettings);
+$('setUnlockInput').addEventListener('keydown', e => { if (e.key==='Enter') unlockSettings(); });
+$('pwBtn').addEventListener('click', async () => {
+  showErr($('pwErr'), '');
+  const p = $('pwInput').value;
+  if (!p) { showErr($('pwErr'), 'Wpisz nowe hasło.'); return; }
+  const r = await api('/api/pwset', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({current: $('pwCurrent').value, password:p})});
+  if (r.error) { showErr($('pwErr'), 'Błąd: ' + r.error); return; }
+  $('pwInput').value = '';
+  $('pwCurrent').value = '';
+  refresh();
+});
+$('lockNowBtn').addEventListener('click', async () => { await api('/api/lock',{method:'POST'}); refresh(); });
+
+async function unlockSettings() {
+  showErr($('setUnlockErr'), '');
+  const p = $('setUnlockInput').value;
+  if (!p) { showErr($('setUnlockErr'), 'Podaj hasło.'); return; }
+  $('setUnlockInput').disabled = true;
+  const r = await api('/api/unlock', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({password:p, client: clientId()})});
+  $('setUnlockInput').disabled = false;
+  if (r.error) {
+    showErr($('setUnlockErr'), 'Błąd: ' + r.error);
+    if (r.error.includes('Zbyt wiele prób')) {
+      setTimeout(() => { $('settingsBtn').disabled = true; setTimeout(() => $('settingsBtn').disabled = false, 10 * 1000); }, 100);
+    }
+    return;
+  }
+  await api('/api/settings/clear', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({client: clientId()})});
+  $('setUnlockInput').value = '';
+  await refresh();
+}
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  try { return await r.json(); } catch (e) { return {}; }
+}
+
+function showErr(el, msg) { el.textContent = msg || ''; el.classList.toggle('shown', !!msg); }
+
+function render() {
+  const sLocked = !!status.settings_locked;
+  $('settingsLockBox').classList.toggle('hidden', !sLocked);
+  $('settingsBody').classList.toggle('hidden', sLocked);
+  $('settingsBtn').textContent = sLocked ? 'Ustawienia 🔒' : 'Ustawienia';
+  $('pwBtn').textContent = status.admin_pw ? 'Zmień hasło' : 'Ustaw hasło';
+  $('pwCurrent').classList.toggle('hidden', !status.admin_pw);
+
+  const logged = !!status.logged_in;
+  const li = $('loginIcon');
+  li.classList.toggle('on', logged);
+  li.classList.toggle('off', !logged);
+  li.title = logged ? ('Twitch: zalogowano jako ' + status.username) : 'Twitch: brak tokenu — zaloguj się w Ustawieniach';
+  $('appver').textContent = status.version ? 'v' + status.version : '';
+
+  const kLogged = !!status.kick_logged_in;
+  const ki = $('kickIcon');
+  ki.classList.toggle('on', kLogged);
+  ki.classList.toggle('off', !kLogged);
+  ki.title = kLogged ? ('Kick: zalogowano jako ' + status.kick_username) : 'Kick: brak zalogowania — zaloguj się w Ustawieniach';
+
+  if (status.disk_free) {
+    $('diskFreeInfo').textContent = 'SSD/HDD Free space: ' + fmtBytes(status.disk_free);
+  } else {
+    $('diskFreeInfo').textContent = '';
+  }
+
+  if (status.logged_in) {
+    $('loginForm').style.display = 'none';
+    $('loginStatus').classList.remove('hidden');
+    $('userName').textContent = status.username;
+  } else {
+    $('loginForm').style.display = '';
+    $('loginStatus').classList.add('hidden');
+  }
+  if (status.kick_logged_in) {
+    $('kickLoginForm').style.display = 'none';
+    $('kickLoginStatus').classList.remove('hidden');
+    $('kickUserName').textContent = status.kick_username;
+  } else {
+    $('kickLoginForm').style.display = '';
+    $('kickLoginStatus').classList.add('hidden');
+  }
+  if (status.out_dir && !$('outDirInput').value) $('outDirInput').placeholder = status.out_dir;
+  $('ffmpegInfo').textContent = status.ffmpeg ? '' : 'ffmpeg niedostępny — nagrania pozostaną jako .ts';
+  $('pollSelSet').value = String(status.poll_sec || 60);
+  const all = status.channels || [];
+  const plats = (c) => (c.platform || 'twitch');
+  const filtered = filter === 'all' ? all : all.filter(c => plats(c) === filter);
+  $('appinfo').textContent = 'Sprawdzanie co ' + (status.poll_sec||60) + ' s · ' + (filter === 'all' ? all.length : filtered.length + ' z ' + all.length) + ' kanał(y)';
+
+  const empty = $('nochans');
+  if (all.length === 0) {
+    empty.textContent = 'Brak kanałów — dodaj nazwę lub adres powyżej.';
+    empty.style.display = 'block';
+  } else if (filtered.length === 0) {
+    empty.textContent = 'Brak kanałów tego typu — kliknij ☰ (Wszystkie), aby zobaczyć wszystkie.';
+    empty.style.display = 'block';
+  } else {
+    empty.style.display = 'none';
+  }
+
+  const wrap = $('chans');
+  wrap.innerHTML = '';
+  const chanRank = (ch) => ch.running ? 0 : (ch.live ? 1 : 2);
+  const list = filtered.slice().sort((a, b) => {
+    const ra = chanRank(a), rb = chanRank(b);
+    if (ra !== rb) return ra - rb;
+    const la = (a.login || '').toLowerCase(), lb = (b.login || '').toLowerCase();
+    return la < lb ? -1 : (la > lb ? 1 : 0);
+  });
+  for (const ch of list) {
+    wrap.appendChild(channelCard(ch));
+  }
+}
+
+function badge(cls, label, spin) {
+  const b = document.createElement('span');
+  b.className = 'badge ' + cls;
+  if (spin) b.appendChild(spinnerEl());
+  b.appendChild(document.createTextNode(label));
+  return b;
+}
+function recBadge(ch) {
+  const b = document.createElement('span');
+  b.className = 'badge b-rec';
+  const d = document.createElement('span');
+  d.className = 'dot';
+  b.appendChild(d);
+  b.appendChild(document.createTextNode('REC'));
+  if (ch.started_at) {
+    const t = document.createElement('span');
+    t.className = 'rec-time';
+    t.dataset.ts = String(ch.started_at);
+    tickElapsed(t);
+    b.appendChild(t);
+  }
+  return b;
+}
+function tickElapsed(el) {
+  const ts = parseInt(el.dataset.ts || '0', 10);
+  if (!ts) { el.textContent = ''; return; }
+  let sec = Math.max(0, Math.floor(Date.now() / 1000 - ts));
+  const h = String(Math.floor(sec / 3600)).padStart(2, '0');
+  const m = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
+  const s = String(sec % 60).padStart(2, '0');
+  el.textContent = h + ':' + m + ':' + s;
+}
+function spinnerEl() { const s = document.createElement('span'); s.className = 'spinner'; return s; }
+
+function avatarEl(ch) {
+  const letter = (ch.login || '?').charAt(0).toUpperCase();
+  const ring = ch.platform === 'kick' ? 'plat-kick' : (ch.platform === 'chaturbate' ? 'plat-chat' : 'plat-twitch');
+  if (ch.avatar) {
+    const img = document.createElement('img');
+    img.className = 'avatar ' + ring;
+    img.alt = '';
+    img.src = ch.avatar;
+    img.addEventListener('error', () => {
+      const d = document.createElement('div');
+      d.className = 'avatar letter ' + ring;
+      d.textContent = letter;
+      img.replaceWith(d);
+    });
+    return img;
+  }
+  const d = document.createElement('div');
+  d.className = 'avatar letter ' + ring;
+  d.textContent = letter;
+  return d;
+}
+
+function btn(label, cls, onClick) {
+  const b = document.createElement('button');
+  if (cls) b.className = cls;
+  b.textContent = label;
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+function channelCard(ch) {
+  const card = document.createElement('div');
+  card.className = 'chan';
+
+  // Row 1: avatar > nick > title > statuses > buttons
+  const r1 = document.createElement('div');
+  r1.className = 'r1';
+  r1.appendChild(avatarEl(ch));
+
+  const nick = document.createElement('a');
+  nick.className = 'nick';
+  nick.textContent = ch.login;
+  const plat = ch.platform === 'kick' ? 'kick' : (ch.platform === 'chaturbate' ? 'chaturbate' : 'twitch');
+  const qp = '?platform=' + plat;
+  nick.href = '/files/' + plat + '/' + encodeURIComponent(ch.login);
+  nick.title = 'Otwórz nagrania i odtwarzacz tego kanału';
+  r1.appendChild(nick);
+
+  const title = document.createElement('span');
+  title.className = 'title';
+  title.textContent = ch.title || '';
+  r1.appendChild(title);
+
+  const badges = document.createElement('div');
+  badges.className = 'badges';
+  badges.appendChild(ch.live ? badge('b-live', 'LIVE') : badge('b-off', 'offline'));
+  if (ch.paused) badges.appendChild(badge('b-paused', 'NIEMONITOROWANY'));
+  if (ch.converting) badges.appendChild(badge('b-conf', 'KONWERSJA', true));
+  else if (ch.running) badges.appendChild(recBadge(ch));
+  r1.appendChild(badges);
+
+  const acts = document.createElement('div');
+  acts.className = 'actions';
+  acts.appendChild(btn('Nagrania', 'ghost', () => { location.href = '/files/' + plat + '/' + encodeURIComponent(ch.login); }));
+  if (ch.converting) {
+    const w = document.createElement('button');
+    w.disabled = true; w.textContent = 'Konwersja…';
+    acts.appendChild(w);
+  } else if (ch.running) {
+    acts.appendChild(btn('Stop', '', () => {
+      if (!confirm('Zatrzymać nagrywanie kanału „' + ch.login + '”?')) return;
+      api('/api/channels/'+ch.login+'/stop'+qp,{method:'POST'}).then(refresh);
+    }));
+  } else {
+    acts.appendChild(btn('Nagraj teraz', '', async () => {
+      const r = await api('/api/channels/'+ch.login+'/start'+qp,{method:'POST'});
+      if (r.error) alert('Błąd: ' + r.error);
+      refresh();
+    }));
+  }
+  if (!ch.converting) {
+    const tb = document.createElement('button');
+    if (ch.paused) {
+      tb.className = 'ghost';
+      tb.textContent = '↺';
+      tb.title = 'Monitoruj ponownie — auto-nagrywanie włączone';
+    } else {
+      tb.className = 'danger';
+      tb.textContent = '⊘';
+      tb.title = 'Nie monitoruj tego kanału — status będzie nadal odświeżany, ale nagrywanie tylko ręcznie';
+    }
+    tb.addEventListener('click', () => api('/api/channels/'+ch.login+'/toggle'+qp,{method:'POST'}).then(refresh));
+    acts.appendChild(tb);
+    acts.appendChild(btn('Usuń', 'danger', () => {
+      if (!confirm('Usunąć kanał „' + ch.login + '” z listy? Nagrania plików zostaną zachowane.')) return;
+      api('/api/channels/'+ch.login+qp,{method:'DELETE'}).then(refresh);
+    }));
+  }
+  r1.appendChild(acts);
+  card.appendChild(r1);
+
+  // Row 2: log (file size)
+  const log = document.createElement('div');
+  log.className = 'log';
+  log.textContent = (ch.log || []).slice(-4).join('\n') || '—';
+  card.appendChild(log);
+
+  return card;
+}
+
+async function login() {
+  showErr($('loginErr'), '');
+  const t = $('tokenInput').value.trim();
+  if (!t) { showErr($('loginErr'), 'Wklej najpierw token.'); return; }
+  const r = await api('/api/login', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({token:t})});
+  if (r.error) { showErr($('loginErr'), 'Błąd: ' + r.error); return; }
+  $('tokenInput').value = '';
+  refresh(true);
+}
+
+async function kickLogin() {
+  showErr($('kickLoginErr'), '');
+  const t = $('kickTokenInput').value.trim();
+  if (!t) { showErr($('kickLoginErr'), 'Wklej najpierw token.'); return; }
+  const r = await api('/api/kick/login', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({token:t})});
+  if (r.error) { showErr($('kickLoginErr'), 'Błąd: ' + r.error); return; }
+  $('kickTokenInput').value = '';
+  refresh(true);
+}
+
+async function addChannel() {
+  showErr($('chanErr'), '');
+  const n = $('chanInput').value.trim();
+  if (!n) return;
+  const body = {name: n, platform: plat};
+  const r = await api('/api/channels', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+  if (r.error) { showErr($('chanErr'), 'Błąd: ' + r.error); return; }
+  $('chanInput').value='';
+  setFilter(plat);
+  refresh();
+}
+
+async function saveOutDir() {
+  const p = $('outDirInput').value.trim();
+  if (!p) { $('outDirInput').value = status.out_dir; return; }
+  const r = await api('/api/outdir', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({path:p})});
+  if (r.error) { showErr($('chanErr'), 'Błąd: ' + r.error); $('outDirInput').value=''; return; }
+  $('outDirInput').value = '';
+  refresh();
+}
+
+async function refresh(forceLogin) {
+  const s = await api('/api/status');
+  if (s && s.channels) {
+    status = s;
+    const l = await api('/api/log');
+    if (l && l.lines) {
+      if (!logSeeded) {
+        renderLog(l.lines);
+        logSeeded = true;
+        logBox.scrollTop = logBox.scrollHeight;
+      } else if (autoScroll) {
+        renderLog(l.lines);
+        logBox.scrollTop = logBox.scrollHeight;
+      }
+    }
+    checkLiveNotifications(s.channels);
+  }
+  render();
+}
+
+setInterval(refresh, 2500);
+setInterval(() => { document.querySelectorAll('.rec-time').forEach(tickElapsed); }, 1000);
+refresh();
+</script>
+</body>
+</html>

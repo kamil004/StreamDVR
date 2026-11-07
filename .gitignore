@@ -1,0 +1,29 @@
+# macOS
+.DS_Store
+build/
+**/.build/
+build_version.txt
+icnsbuild/
+icnsbuild_canvas.png
+icon.iconset/
+
+# .NET / Windows build artifacts
+**/obj/
+**/bin/
+Windows/StreamDVR.exe
+Windows/StreamDVR-Windows*.zip
+Windows/.vs/
+Windows/publish/
+
+# Misc
+*.user
+
+# QNAP / Go build artifacts
+StreamDVR_QNAP/**/*.qpkg
+StreamDVR_QNAP/TwitchQPKG/payload/twitchdvr/streamdvr-web
+StreamDVR_QNAP/Do portu/
+# Compiled binaries
+StreamDVR_QNAP/TwitchQPKG/twitchdvr/twitchdvr
+StreamDVR_QNAP/TwitchQPKG/twitchdvr/twitchdvr-*
+build/StreamDVR.app/Contents/MacOS/StreamDVR
+StreamDVR_*.qpkg

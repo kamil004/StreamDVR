@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stream DVR — pliki</title>
+<link rel="icon" type="image/png" href="/icon.png">
+<link rel="apple-touch-icon" href="/icon.png">
+<style>
+  :root { --bg:#0f1117; --card:#161a22; --line:#262c3a; --fg:#e8ebf2; --mut:#8a93a6; --acc:#7c5cff; --ok:#2ec27e; --live:#ff4d6d; --warn:#f4b942; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; padding:0; }
+  body { font:14px/1.45 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--fg); min-height:100vh; }
+  button { padding:7px 12px; border:0; border-radius:8px; background:var(--acc); color:#fff; cursor:pointer; font-weight:600; font-size:12px; }
+  button:hover { filter:brightness(1.12); }
+  button:disabled { opacity:.45; cursor:default; filter:none; }
+  button.ghost { background:#222838; color:var(--fg); }
+  button.danger { background:#3a1522; color:#ff8fa3; }
+  .header { display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:12px 22px; background:#12141c; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:10; }
+  .header .logo { font-size:18px; font-weight:800; display:flex; align-items:center; gap:10px; }
+  .header .sub { color:var(--mut); font-size:12px; }
+  .app { max-width:1100px; width:100%; margin:0 auto; padding:20px 22px 60px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px; }
+  .card h2 { margin:0 0 10px; font-size:15px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .muted { color:var(--mut); font-size:12px; }
+  video { width:100%; max-height:70vh; background:#000; border:1px solid var(--line); border-radius:10px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th,td { text-align:left; padding:8px 10px; border-bottom:1px solid #161a22; }
+  th { color:var(--mut); font-weight:600; font-size:11px; text-transform:uppercase; }
+  tr:hover td { background:#1a1f2a; }
+  td.name { font-family:ui-monospace,Menlo,monospace; font-size:12px; word-break:break-all; }
+  td.sz { color:var(--mut); white-space:nowrap; }
+  td.act { white-space:nowrap; text-align:right; }
+  td.act button { margin-left:6px; }
+  .rec-now { color:var(--ok); font-weight:700; font-size:11px; }
+  .empty { padding:20px; text-align:center; color:var(--mut); }
+  .muted { color:var(--mut); font-size:12px; }
+  a.dl { color:var(--acc); text-decoration:none; margin-left:6px; }
+  a.dl:hover { text-decoration:underline; }
+  .home-btn { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:#0d2a1c; background:var(--ok); border:1px solid #3ddc97; padding:5px 16px; border-radius:999px; text-decoration:none; transition:filter .15s; }
+  .home-btn:hover { filter:brightness(1.12); }
+  .sep { color:var(--mut); }
+</style>
+</head>
+<body>
+<header class="header">
+  <div class="logo"><img src="/icon.png" alt="" style="width:28px;height:28px;border-radius:8px"><span>Stream DVR</span></div>
+  <div class="sub"><a href="/" class="home-btn">Wróć do panelu</a> <span class="sep">·</span> pliki kanału: <b id="loginLab"></b></div>
+</header>
+
+<main class="app">
+  <div class="card">
+    <h2>Odtwarzacz <span class="muted" id="nowName"></span></h2>
+    <video id="v" controls autoplay preload="metadata"></video>
+    <p class="muted" id="playHint">Kliknij ▶ przy pliku, żeby go odtworzyć. Pliki <b>.ts</b> są odtwarzane przez hls.js (działa w Chrome/Firefox/Edge; Safari gra natywnie). Rosnące pliki są oznaczane i lista odświeża się sama.</p>
+  </div>
+
+  <div class="card">
+    <h2>Nagrania <span id="refreshTick"></span> <span style="margin-left:auto"><button id="clearBtn" class="danger" onclick="clearFolder()" title="Usuwa WSZYSTKIE pliki z folderu tego kanału">Wyczyść folder</button></span></h2>
+    <table>
+      <thead><tr><th>Plik</th><th>Rozmiar</th><th>Zmodyfikowany</th><th style="text-align:right">Akcje</th></tr></thead>
+      <tbody id="rows"><tr><td colspan="4" class="empty">Ładowanie…</td></tr></tbody>
+    </table>
+    <div class="empty" id="noFiles" style="display:none">Brak nagranych plików w tym folderze.</div>
+  </div>
+</main>
+
+<script src="/hls.js"></script>
+<script>
+const v = document.getElementById('v');
+const parts = location.pathname.split('/').filter(Boolean);
+const platform = parts.length >= 3 ? parts[parts.length - 2] : 'twitch';
+const login = parts[parts.length - 1];
+document.getElementById('loginLab').textContent = login;
+
+function fmtBytes(n) {
+  if (n < 1024) return n + ' B';
+  const u = ['KB','MB','GB','TB']; let i = -1;
+  do { n /= 1024; i++; } while (n >= 1024 && i < u.length-1);
+  return n.toFixed(1) + ' ' + u[i];
+}
+function ext(name) { const i = name.lastIndexOf('.'); return i >= 0 ? name.slice(i+1).toLowerCase() : ''; }
+function isGrowing(name) { return /\.(ts|part)$/.test(name) && /_\[[0-9]/.test(name); }
+
+let autoPlayed = false;
+function loadList() {
+  fetch('/api/files/' + platform + '/' + login).then(r => r.json()).then(d => {
+    const clearBtn = document.getElementById('clearBtn');
+    if (clearBtn) clearBtn.disabled = d.files.some(f => f.rec);
+    document.getElementById('rows').innerHTML = '';
+    const noF = document.getElementById('noFiles');
+    noF.style.display = d.files.length ? 'none' : 'block';
+    const live = d.files.find(f => f.rec);
+    for (const f of d.files) {
+      const tr = document.createElement('tr');
+      const tdN = document.createElement('td'); tdN.className = 'name';
+      tdN.textContent = f.name;
+      if (f.rec) { const s = document.createElement('span'); s.className = 'rec-now'; s.textContent = ' ● NAGRYWANY'; tdN.appendChild(s); }
+      const tdS = document.createElement('td'); tdS.className = 'sz'; tdS.textContent = fmtBytes(f.size);
+      const tdM = document.createElement('td'); tdM.className = 'sz'; tdM.textContent = f.mod;
+      const tdA = document.createElement('td'); tdA.className = 'act';
+      const enc = encodeURIComponent(f.name);
+      const isRec = !!f.rec;
+      const bPlay = document.createElement('button'); bPlay.textContent = '▶ Odtwórz'; bPlay.addEventListener('click', () => play(f)); tdA.appendChild(bPlay);
+      if (ext(f.name) === 'ts') {
+        const bC = document.createElement('button'); bC.textContent = '→ MP4'; bC.addEventListener('click', () => convert(f.name));
+        if (isRec) { bC.disabled = true; bC.title = 'Ten plik jest teraz nagrywany — przekonwertuj po zakończeniu.'; }
+        tdA.appendChild(bC);
+      }
+      const aDl = document.createElement('a'); aDl.className = 'dl'; aDl.href = '/media/' + platform + '/' + login + '/' + enc; aDl.download = ''; aDl.textContent = '⬇'; tdA.appendChild(aDl);
+      const bRen = document.createElement('button'); bRen.textContent = '✏️';
+      bRen.title = 'Zmień nazwę pliku (rozszerzenie zostanie zachowane)';
+      if (isRec) { bRen.disabled = true; bRen.title = 'Trwa nagrywanie tego pliku.'; }
+      bRen.addEventListener('click', () => rename(f)); tdA.appendChild(bRen);
+      const bDel = document.createElement('button'); bDel.className = 'danger'; bDel.textContent = '🗑';
+      if (isRec) { bDel.disabled = true; bDel.title = 'Trwa nagrywanie tego pliku.'; }
+      bDel.addEventListener('click', () => del(f.name)); tdA.appendChild(bDel);
+      tr.append(tdN, tdS, tdM, tdA);
+      document.getElementById('rows').appendChild(tr);
+    }
+    // auto-start the live (currently recording) stream when the page opens;
+    // fragmented .mp4 (Chaturbate) is skipped - it plays only after the remux
+    if (live && !autoPlayed && ext(live.name) === 'ts') {
+      autoPlayed = true;
+      play(live);
+    }
+  });
+}
+
+let current = null;
+function play(f) {
+  stop();
+  current = f.name;
+  document.getElementById('nowName').textContent = '▸ ' + f.name;
+  const e = ext(f.name);
+  const url = '/media/' + platform + '/' + login + '/' + encodeURIComponent(f.name);
+  if (e === 'ts') {
+    document.getElementById('playHint').textContent = 'Odtwarzanie ' + f.name + (f.rec ? ' (na żywo — plik rośnie, odtwarzacz dogrywa kolejne segmenty).' : ' (hls.js).');
+    if (window.Hls && Hls.isSupported()) {
+      // while the file is being recorded the server serves a live/EVENT
+      // playlist, so hls.js keeps polling and buffering the new data
+      const h = new Hls({ maxBufferLength: 60, liveSyncDurationCount: 4 });
+      h.loadSource('/playlist/' + platform + '/' + login + '/' + encodeURIComponent(f.name));
+      h.attachMedia(v);
+      v.play().catch(() => {});
+    } else {
+      v.src = url; // Safari: native MPEG-TS support
+      v.play().catch(() => {});
+    }
+  } else if (e === 'mp4' && f.rec) {
+    // Chaturbate writes a fragmented fMP4 while recording; it plays only
+    // after the final remux, so don't force the raw growing file on the player.
+    document.getElementById('playHint').textContent = 'Odtwarzanie ' + f.name + ' (plik rośnie — pełne odtwarzanie po sfinalizowaniu nagrania).';
+    v.src = url;
+    v.play().catch(() => {});
+  } else {
+    document.getElementById('playHint').textContent = 'Odtwarzanie ' + f.name + '.';
+    v.src = url;
+    v.play().catch(() => {});
+  }
+}
+function stop() { v.pause(); v.removeAttribute('src'); v.load(); }
+
+function convert(name) {
+  if (!confirm('Przekonwertować „' + name + '” na MP4? (oryginalny .ts zostanie usunięty)')) return;
+  fetch('/api/files/' + platform + '/' + login + '/' + encodeURIComponent(name) + '/convert', { method:'POST' })
+    .then(r => r.json()).then(d => {
+      if (d.error) { alert('Błąd: ' + d.error); return; }
+      loadList();
+    });
+}
+function del(name) {
+  if (!confirm('Usunąć plik „' + name + '”?')) return;
+  fetch('/api/files/' + platform + '/' + login + '/' + encodeURIComponent(name), { method:'DELETE' })
+    .then(r => r.json()).then(d => {
+      if (d.error) { alert('Błąd: ' + d.error); return; }
+      if (current === name) stop();
+      loadList();
+    });
+}
+function rename(f) {
+  const dot = f.name.lastIndexOf('.');
+  const base = dot >= 0 ? f.name.slice(0, dot) : f.name;
+  const next = prompt('Nowa nazwa pliku (bez rozszerzenia):', base);
+  if (next === null || !next.trim()) return;
+  fetch('/api/files/' + platform + '/' + login + '/' + encodeURIComponent(f.name) + '/rename',
+    { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({to: next.trim()}) })
+    .then(r => r.json()).then(d => {
+      if (d.error) { alert('Błąd: ' + d.error); return; }
+      if (current === f.name) {
+        document.getElementById('nowName').textContent = '▸ ' + d.name;
+      }
+      loadList();
+    });
+}
+function clearFolder() {
+  if (!confirm('Opróżnić folder kanału „' + login + '” (usunąć WSZYSTKIE nagrania)?\nTej operacji nie można cofnąć.')) return;
+  fetch('/api/files/' + platform + '/' + login, { method:'DELETE' })
+    .then(r => r.json()).then(d => {
+      if (d.error) { alert('Błąd: ' + d.error); return; }
+      stop();
+      loadList();
+    });
+}
+
+loadList();
+setInterval(loadList, 6000);
+</script>
+</body>
+</html>
