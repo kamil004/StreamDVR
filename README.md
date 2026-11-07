@@ -1,6 +1,6 @@
 # StreamDVR
 
-Native **macOS** (Swift/AppKit) and **Windows** (WPF/.NET) apps for recording live
+Native **macOS** (Swift/AppKit) and **QNAP** (Go) apps for recording live
 streams at maximum quality. Supports **Twitch**, **Chaturbate** and **Kick**, and
 automatically starts recording when a tracked channel goes live.
 
@@ -16,9 +16,9 @@ automatically starts recording when a tracked channel goes live.
   - `https://chaturbate.com/channel name/` (incl. locale subdomains like `pl.`)
 - **Platform picker** — choose the default platform (Twitch / Chaturbate / Kick)
   when adding a plain channel name; full URLs always win
-- **Drag to reorder** channels (macOS + Windows)
+- **Drag to reorder** channels (macOS)
 - **Per-channel folder button** — jump straight to a channel's recordings
-  (macOS: Finder, Windows: Explorer)
+  (macOS: Finder)
 - **Auto sort — live channels to the top** — manual order is kept and restored
   when disabled
 
@@ -43,7 +43,7 @@ automatically starts recording when a tracked channel goes live.
   and current bitrate
 - **Prevent Mac sleep** while monitoring (native macOS power assertion, no extra
   permissions)
-- **Choose output folder** — changeable in Settings, openable in Finder/Explorer
+- **Choose output folder** — changeable in Settings, openable in Finder
 
 ### Accounts & login
 
@@ -54,7 +54,7 @@ automatically starts recording when a tracked channel goes live.
 
 ### Automatic updates
 
-- **Built-in updater** — checks GitHub Releases for the newest macOS/Windows build
+- **Built-in updater** — checks GitHub Releases for the newest macOS build
 - **One-click update** — "Update available" button in the status bar downloads,
   installs and restarts the app
 - **Check for updates on launch** toggle + manual "Check now" button in Settings
@@ -79,7 +79,7 @@ spinner appears in the status bar.
 ## macOS build
 
 ```bash
-./build.sh          # bumps version, builds to build/StreamDVR.app, commits + pushes
+./build.sh          # bumps version, builds to build/StreamDVR.app
 open build/StreamDVR.app
 ```
 
@@ -89,37 +89,25 @@ open build/StreamDVR.app
   build (patch limited to 15, then minor bumps: `1.0.15 → 1.1.0`).
 - IDs: bundle identifier `com.streamdvr.app`, app name `StreamDVR`.
 
-## Windows build
+## QNAP build
 
 ```bash
-export DOTNET_ROOT="$HOME/.dotnet"; export PATH="$DOTNET_ROOT:$PATH"   # if not on PATH
-dotnet build Windows/StreamDVR.App/StreamDVR.App.csproj -c Release     # quick build
-cd Windows
-powershell -ExecutionPolicy Bypass -File .\build.ps1                   # auto-version + single-file exe + zip
+cd QNAP/QPKG
+./build.sh          # compiles Go binary, assembles .qpkg package
 ```
 
-- Requires .NET SDK 8.0+ and WebView2 Runtime.
-- Windows **shares the version number with macOS** — it reads the same
-  `build_version.txt` from the repo root (no OS-specific bump). It publishes a
-  self-contained single-file `StreamDVR.exe` and zips it as
-  `StreamDVR-Windows-v<version>.zip`.
-- On first launch the Windows app auto-installs missing `streamlink` / `ffmpeg` via
-  `winget`.
-- See `Windows/README.md` for details.
+- Requires Go 1.24+ installed on macOS (or cross-compile with `GOOS=linux GOARCH=amd64`).
+- Produces `build/StreamDVR_3.0.0_x86_64.qpkg` — install via QNAP App Center > Install from file.
+- Web UI available at `http://<QNAP_IP>:8090`
 
 ## Releases
 
-Both platforms are released **together in a single GitHub release**
-(`kamil004/StreamDVR`), sharing the exact same version number. Each release
-contains two zipped assets, one per platform:
+macOS and QNAP are released separately:
 
 | Release asset | Platform |
 |---------------|----------|
-| `StreamDVR-macOS-v<version>.zip`   | macOS |
-| `StreamDVR-Windows-v<version>.zip` | Windows |
-
-Each app's updater only looks at its own asset prefix, so releasing one platform
-never triggers updates on the other.
+| `StreamDVR.app` (app bundle) | macOS |
+| `StreamDVR_<version>_x86_64.qpkg` | QNAP |
 
 ## Platform notes
 
@@ -132,7 +120,7 @@ never triggers updates on the other.
 ## Recording behavior
 
 - **Location** — `~/Documents/StreamDVR/<platform>/<login>/` (macOS) or
-  `%USERPROFILE%\Documents\StreamDVR\<platform>\<login>\` (Windows), changeable in Settings.
+  `/share/<volume>/.qpkg/StreamDVR/recordings/` (QNAP), changeable in Settings.
 - **Auto-start** — polled at the configured interval while monitoring; recording starts when live.
 - **Auto-stop** — file is finalized when the stream ends or you press Stop.
 - **Ads** — recordings never contain advertisements (Twitch) thanks to streamlink.
@@ -142,7 +130,7 @@ never triggers updates on the other.
 - **macOS** — `~/Library/Application Support/TwitchDVR/settings.plist`
   (keys: `channels`, `twitch_output_dir`, `auto_sort_live`, `prevent_sleep`,
   `check_updates`, `poll_interval`, …)
-- **Windows** — `%APPDATA%\StreamDVR\settings.json`
+- **QNAP** — `/etc/config/qpkg.cfg` + persistent storage in `/share/<volume>/`
 
 ## License
 
