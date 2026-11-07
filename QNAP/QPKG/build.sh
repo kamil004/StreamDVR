@@ -24,7 +24,7 @@ sed -i '' "s/QPKG_VER=.*/QPKG_VER="$VER"/" control/qpkg.cfg
 
 echo "=== Building streamdvr-web (linux/amd64) ==="
 pushd ../Sources >/dev/null
-GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o ../payload/twitchdvr/streamdvr-web .
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o ../QPKG/payload/twitchdvr/streamdvr-web .
 popd >/dev/null
 chmod +x payload/twitchdvr/streamdvr-web
 echo "streamdvr-web: $(ls -1 payload/twitchdvr/streamdvr-web | xargs ls -l | awk '{print $5}') bytes"

@@ -51,46 +51,9 @@ const (
 	clientID    = "kimne78kx3ncx6brgo4mv6wki5h1ko"
 	usherFormat = "https://usher.ttvnw.net/api/channel/hls/%s.m3u8"
 	ua          = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+	appVersion  = "3.0.6"
 )
-var appVersion = "3.0.0"  // loaded from build_version.txt at startup
 
-func loadAppVersion() {
-	// Try common QNAP install paths first (most reliable)
-	for _, rel := range []string{
-		"/.qpkg/StreamDVR/build_version.txt",
-		"/StreamDVR/build_version.txt",
-	} {
-		for _, share := range []string{"/share/HDA_DATA", "/share/HDB_DATA", "/share/MD0_DATA", "/share/MD1_DATA"} {
-			if data, err := os.ReadFile(share + rel); err == nil {
-				if v := strings.TrimSpace(string(data)); v != "" {
-					appVersion = v
-					return
-				}
-			}
-		}
-	}
-	// Try relative to executable
-	exePath, err := os.Executable()
-	if err == nil {
-		exeDir := filepath.Dir(exePath)
-		for i := 0; i < 4; i++ {
-			p := filepath.Join(exeDir, "build_version.txt")
-			if data, err := os.ReadFile(p); err == nil {
-				if v := strings.TrimSpace(string(data)); v != "" {
-					appVersion = v
-					return
-				}
-			}
-			exeDir = filepath.Dir(exeDir)
-		}
-	}
-	// Try current working directory
-	if data, err := os.ReadFile("build_version.txt"); err == nil {
-		if v := strings.TrimSpace(string(data)); v != "" {
-			appVersion = v
-		}
-	}
-}
 var gqlURL = "https://gql.twitch.tv/gql"
 
 type Channel struct {
@@ -1591,8 +1554,6 @@ func main() {
 	tlsport := flag.Int("tlsport", 8443, "https (self-signed) port, 0 disables")
 	root := flag.String("root", ".", "QPKG root (contains 'twitchdvr')")
 	data := flag.String("data", "", "data dir (overrides <root>/twitchdvr/data)")
-	// Load version from build_version.txt (shared with macOS)
-	loadAppVersion()
 	flag.Parse()
 
 	dataDir := *data
