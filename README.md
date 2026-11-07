@@ -4,7 +4,9 @@ Native **macOS** (Swift/AppKit) and **QNAP** (Go) apps for recording live
 streams at maximum quality. Supports **Twitch**, **Chaturbate** and **Kick**, and
 automatically starts recording when a tracked channel goes live.
 
-![StreamDVR screenshot](screenshot.jpg)
+![StreamDVR macOS](screenshot_macos.jpg)
+
+![StreamDVR QNAP](screenshot_qnap.jpg)
 
 ## Features
 
