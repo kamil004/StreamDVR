@@ -17,11 +17,19 @@ import tarfile
 ROOT = os.path.dirname(os.path.abspath(__file__))
 WORK = os.path.join(ROOT, "payload")
 CONTROL_DIR = os.path.join(ROOT, "control")
-OUT_QPKG = os.path.join(ROOT, "..", "..", "build", "StreamDVR_3.0.0_x86_64.qpkg")
+
+# Read version from build_version.txt (shared with macOS build.sh)
+VERSION_FILE = os.path.join(ROOT, "..", "..", "build_version.txt")
+if os.path.isfile(VERSION_FILE):
+    with open(VERSION_FILE) as f:
+        VER = f.read().strip()
+else:
+    VER = "3.0.0"  # fallback
+
+OUT_QPKG = os.path.join(ROOT, "..", "..", "build", f"StreamDVR_{VER}_x86_64.qpkg")
 
 NAME = "StreamDVR"
 DISPLAY_NAME = "Stream DVR"
-VER = "3.0.0"
 PAD = 20480  # QDK reserves this many bytes for the control tar member
 BUILD_DATE = __import__("datetime").date.today().strftime("%Y%m%d")
 
