@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -44,7 +45,7 @@ func TestPickVariantInfo(t *testing.T) {
 audio-only.m3u8
 `
 
-	uri, name, res, err := pickVariantInfo(master, resolveUsher)
+	uri, _, res, err := pickVariantInfo(master, resolveUsher)
 	if err != nil {
 		t.Fatalf("pickVariantInfo error: %v", err)
 	}

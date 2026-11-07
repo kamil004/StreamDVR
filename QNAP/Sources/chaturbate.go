@@ -9,8 +9,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
-	"time"
 )
 
 // Chaturbate is recorded directly from its public HLS, like the macOS/Windows
@@ -51,72 +49,6 @@ func chaturbateRoom(c *http.Client, login string) (string, int, error) {
 	return string(b), resp.StatusCode, nil
 }
 
-// chaturbateLive reports (live, title) for a room: live iff the page embeds a
-// playable HLS m3u8.
-
-// cbRateLimit tracks per-channel request counts to avoid hammering Chaturbate.
-// After 10 failed requests within 5 minutes, the channel is skipped for 10 minutes.
-type cbRateLimit struct {
-	fails     int
-	lastFail  time.Time
-	blocked   time.Time
-}
-
-var (
-	cbRateMu     sync.Mutex
-	cbRateLimits = make(map[string]*cbRateLimit)
-	cbRateMaxFails = 10
-	cbRateWindow       = 5 * time.Minute
-	cbRateBlock        = 10 * time.Minute
-)
-
-func cbCheckRateLimit(login string) bool {
-	cbRateMu.Lock()
-	defer cbRateMu.Unlock()
-	rl := cbRateLimits[login]
-	if rl == nil {
-		rl = &cbRateLimit{}
-		cbRateLimits[login] = rl
-	}
-	now := time.Now()
-	// If currently blocked, check if block expired
-	if !rl.blocked.IsZero() && now.Before(rl.blocked) {
-		return false // still blocked
-	}
-	// Reset counter if window expired
-	if !rl.lastFail.IsZero() && now.Sub(rl.lastFail) > cbRateWindow {
-		rl.fails = 0
-	}
-	return true
-}
-
-func cbRecordFail(login string) {
-	cbRateMu.Lock()
-	defer cbRateMu.Unlock()
-	rl := cbRateLimits[login]
-	if rl == nil {
-		rl = &cbRateLimit{}
-		cbRateLimits[login] = rl
-	}
-	rl.fails++
-	rl.lastFail = time.Now()
-	if rl.fails >= cbRateMaxFails {
-		rl.blocked = time.Now().Add(cbRateBlock)
-	}
-}
-
-func cbRecordSuccess(login string) {
-	cbRateMu.Lock()
-	defer cbRateMu.Unlock()
-	rl := cbRateLimits[login]
-	if rl == nil {
-		rl = &cbRateLimit{}
-		cbRateLimits[login] = rl
-	}
-	rl.fails = 0
-	rl.lastFail = time.Time{}
-	rl.blocked = time.Time{}
-}
 
 func chaturbateLive(c *http.Client, login string) (bool, string, error) {
 	html, status, err := chaturbateRoom(c, login)

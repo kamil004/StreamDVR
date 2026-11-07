@@ -1,12 +1,9 @@
 import Foundation
-import Network
-import AppKit
 
 // MARK: - Models
 
 enum RecordingStatus: Equatable {
     case idle
-    case monitoring
     case recording(duration: TimeInterval)
     case saving
     case error(String)
@@ -14,7 +11,6 @@ enum RecordingStatus: Equatable {
     var label: String {
         switch self {
         case .idle: return "Idle"
-        case .monitoring: return "Monitoring..."
         case .recording(let d): return String(format: "Recording %02d:%02d:%02d", Int(d)/3600, Int(d)%3600/60, Int(d)%60)
         case .saving: return "Saving..."
         case .error(let m): return "Error: \(m)"
@@ -224,46 +220,6 @@ struct GQLStreamResponse: Decodable {
 }
 
 
-// MARK: - Decodable Models
-
-struct TwitchUserResponse: Decodable {
-    let data: [TwitchUser]
-}
-
-struct TwitchUser: Decodable {
-    let id: String
-    let login: String
-    let display_name: String
-}
-
-struct TwitchStreamResponse: Decodable {
-    let data: [TwitchStream]
-}
-
-struct TwitchStream: Decodable {
-    let id: String
-    let title: String
-    let game_name: String
-    let viewer_count: Int
-    let thumbnail_url: String
-    let user_login: String
-    let user_id: String
-}
-
-struct StreamAccessTokenResponse: Decodable {
-    let playback_access_token: PlaybackAccessToken
-}
-
-struct PlaybackAccessToken: Decodable {
-    let value: String
-    let signature: String
-}
-
-struct TokenResponse: Decodable {
-    let access_token: String
-    let expires_in: Int?
-    let refresh_token: String?
-}
 
 // MARK: - Config storage (plist, no Keychain)
 

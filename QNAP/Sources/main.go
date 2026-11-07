@@ -49,13 +49,13 @@ var kickFavicon []byte
 
 const (
 	clientID    = "kimne78kx3ncx6brgo4mv6wki5h1ko"
-	gqlURL      = "https://gql.twitch.tv/gql"
 	usherFormat = "https://usher.ttvnw.net/api/channel/hls/%s.m3u8"
 	ua          = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 	// appVersion is shown in the header next to the logo; keep in sync with
 	// the QPKG version (build_qpkg.py / qpkg.cfg)
 	appVersion = "3.0.0"
 )
+var gqlURL = "https://gql.twitch.tv/gql"
 
 type Channel struct {
 	Name       string   `json:"name"`

@@ -143,7 +143,7 @@ struct ChaturbateProvider: ChannelProvider {
     }
 
     private func fetchHTML(login: String) async throws -> String {
-        let url = URL(string: "https://chaturbate.com/\(login)/")!
+        guard let url = URL(string: "https://chaturbate.com/\\(login)/") else { throw URLError(.badURL) }
         var request = URLRequest(url: url)
         request.timeoutInterval = 20
         request.setValue(
@@ -353,7 +353,7 @@ struct KickProvider: ChannelProvider {
     /// Channel JSON from the public API. `nil` only when the channel doesn't exist;
     /// rate-limited / server errors throw so the channel isn't dropped as offline.
     private func fetchChannel(login: String) async throws -> [String: Any]? {
-        let url = URL(string: "https://kick.com/api/v2/channels/\(login)")!
+        guard let url = URL(string: "https://kick.com/api/v2/channels/\\(login)") else { throw URLError(.badURL) }
         var request = URLRequest(url: url)
         request.timeoutInterval = 20
         request.setValue(

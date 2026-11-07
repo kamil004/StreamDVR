@@ -1255,4 +1255,3 @@ func slugTitle(s string) string {
 	return out
 }
 
-var _ = http.MethodGet

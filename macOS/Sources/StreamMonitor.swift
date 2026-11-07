@@ -704,8 +704,37 @@ class StreamMonitor: ObservableObject {
         let bitrate: String
     }
 
+    private func findFfprobe() -> String? {
+        let paths = [
+            "/opt/homebrew/bin/ffprobe",
+            "/usr/local/bin/ffprobe",
+            "/usr/bin/ffprobe",
+            "/opt/local/bin/ffprobe",
+            "/usr/sbin/ffprobe"
+        ]
+        for path in paths {
+            if FileManager.default.fileExists(atPath: path) {
+                return path
+            }
+        }
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/bash")
+        task.arguments = ["-c", "which ffprobe 2>/dev/null || echo ''"]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = FileHandle.nullDevice
+        try? task.run()
+        task.waitUntilExit()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let path = path, !path.isEmpty, FileManager.default.fileExists(atPath: path) {
+            return path
+        }
+        return nil
+    }
+
     private func probeFile(path: String) async -> ProbeResult {
-        let ffprobe = "/opt/homebrew/bin/ffprobe"
+        guard let ffprobe = findFfprobe(),
         guard FileManager.default.fileExists(atPath: ffprobe),
               FileManager.default.fileExists(atPath: path) else {
             return ProbeResult(mediaDuration: 0, resolution: "", bitrate: "")

@@ -1,6 +1,5 @@
 import SwiftUI
 import WebKit
-import AppKit
 
 // MARK: - WebView-based Twitch login
 
