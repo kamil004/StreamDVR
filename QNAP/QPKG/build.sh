@@ -29,6 +29,9 @@ popd >/dev/null
 chmod +x payload/twitchdvr/streamdvr-web
 echo "streamdvr-web: $(ls -1 payload/twitchdvr/streamdvr-web | xargs ls -l | awk '{print $5}') bytes"
 
+# Copy build_version.txt into payload (so the running binary can find it)
+cp "$(dirname "$0")/../build_version.txt" payload/build_version.txt 2>/dev/null || true
+
 echo "=== Assembling QPKG $VER ==="
 python3 build_qpkg.py
 

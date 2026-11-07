@@ -54,27 +54,40 @@ const (
 )
 var appVersion = "3.0.0"  // loaded from build_version.txt at startup
 
-// loadAppVersion reads the version from build_version.txt (same file macOS build.sh uses)
 func loadAppVersion() {
-	// Try relative to executable (QNAP install path)
+	// Try common QNAP install paths first (most reliable)
 	for _, rel := range []string{
-		"../build_version.txt",
-		"../../build_version.txt",
+		"/.qpkg/StreamDVR/build_version.txt",
+		"/StreamDVR/build_version.txt",
 	} {
-		if data, err := os.ReadFile(rel); err == nil {
-			if v := strings.TrimSpace(string(data)); v != "" {
-				appVersion = v
-				return
+		for _, share := range []string{"/share/HDA_DATA", "/share/HDB_DATA", "/share/MD0_DATA", "/share/MD1_DATA"} {
+			if data, err := os.ReadFile(share + rel); err == nil {
+				if v := strings.TrimSpace(string(data)); v != "" {
+					appVersion = v
+					return
+				}
 			}
 		}
 	}
-	// Fallback: try /share/... (QNAP shared folder)
-	for _, share := range []string{"/share/HDA_DATA", "/share/HDB_DATA", "/share/MD0_DATA"} {
-		if data, err := os.ReadFile(share + "/StreamDVR/build_version.txt"); err == nil {
-			if v := strings.TrimSpace(string(data)); v != "" {
-				appVersion = v
-				return
+	// Try relative to executable
+	exePath, err := os.Executable()
+	if err == nil {
+		exeDir := filepath.Dir(exePath)
+		for i := 0; i < 4; i++ {
+			p := filepath.Join(exeDir, "build_version.txt")
+			if data, err := os.ReadFile(p); err == nil {
+				if v := strings.TrimSpace(string(data)); v != "" {
+					appVersion = v
+					return
+				}
 			}
+			exeDir = filepath.Dir(exeDir)
+		}
+	}
+	// Try current working directory
+	if data, err := os.ReadFile("build_version.txt"); err == nil {
+		if v := strings.TrimSpace(string(data)); v != "" {
+			appVersion = v
 		}
 	}
 }
