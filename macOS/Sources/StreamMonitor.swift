@@ -735,7 +735,7 @@ class StreamMonitor: ObservableObject {
 
     private func probeFile(path: String) async -> ProbeResult {
         guard let ffprobe = findFfprobe(),
-        guard FileManager.default.fileExists(atPath: ffprobe),
+              FileManager.default.fileExists(atPath: ffprobe),
               FileManager.default.fileExists(atPath: path) else {
             return ProbeResult(mediaDuration: 0, resolution: "", bitrate: "")
         }
