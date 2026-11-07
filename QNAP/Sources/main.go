@@ -51,10 +51,33 @@ const (
 	clientID    = "kimne78kx3ncx6brgo4mv6wki5h1ko"
 	usherFormat = "https://usher.ttvnw.net/api/channel/hls/%s.m3u8"
 	ua          = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-	// appVersion is shown in the header next to the logo; keep in sync with
-	// the QPKG version (build_qpkg.py / qpkg.cfg)
-	appVersion = "3.0.0"
 )
+var appVersion = "3.0.0"  // loaded from build_version.txt at startup
+
+// loadAppVersion reads the version from build_version.txt (same file macOS build.sh uses)
+func loadAppVersion() {
+	// Try relative to executable (QNAP install path)
+	for _, rel := range []string{
+		"../build_version.txt",
+		"../../build_version.txt",
+	} {
+		if data, err := os.ReadFile(rel); err == nil {
+			if v := strings.TrimSpace(string(data)); v != "" {
+				appVersion = v
+				return
+			}
+		}
+	}
+	// Fallback: try /share/... (QNAP shared folder)
+	for _, share := range []string{"/share/HDA_DATA", "/share/HDB_DATA", "/share/MD0_DATA"} {
+		if data, err := os.ReadFile(share + "/StreamDVR/build_version.txt"); err == nil {
+			if v := strings.TrimSpace(string(data)); v != "" {
+				appVersion = v
+				return
+			}
+		}
+	}
+}
 var gqlURL = "https://gql.twitch.tv/gql"
 
 type Channel struct {
@@ -1555,6 +1578,8 @@ func main() {
 	tlsport := flag.Int("tlsport", 8443, "https (self-signed) port, 0 disables")
 	root := flag.String("root", ".", "QPKG root (contains 'twitchdvr')")
 	data := flag.String("data", "", "data dir (overrides <root>/twitchdvr/data)")
+	// Load version from build_version.txt (shared with macOS)
+	loadAppVersion()
 	flag.Parse()
 
 	dataDir := *data
