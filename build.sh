@@ -3,7 +3,7 @@ set -e
 
 APP_NAME="StreamDVR"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-SRC_DIR="$SCRIPT_DIR/StreamDVR/StreamDVR"
+SRC_DIR="$SCRIPT_DIR/macOS/Sources"
 BUILD_DIR="$SCRIPT_DIR/build"
 APP_DIR="$BUILD_DIR/$APP_NAME.app"
 CONTENTS_DIR="$APP_DIR/Contents"
@@ -149,16 +149,17 @@ PLIST
 echo "  ✓ Info.plist created"
 
 # Copy app icon if present
-if [ -f "$SCRIPT_DIR/streamdvr.icns" ]; then
-    cp "$SCRIPT_DIR/streamdvr.icns" "$RESOURCES_DIR/AppIcon.icns"
+# Copy app icon if present
+if [ -f "$SCRIPT_DIR/macOS/Assets/streamdvr.icns" ]; then
+    cp "$SCRIPT_DIR/macOS/Assets/streamdvr.icns" "$RESOURCES_DIR/AppIcon.icns"
     echo "  ✓ App icon embedded (streamdvr.icns)"
 else
     echo "  ⚠️  No app icon found — using default icon"
 fi
 
 # Header logo (round PNG with transparent background) for the top-left corner
-if [ -f "$SCRIPT_DIR/streamdvricon.png" ]; then
-    cp "$SCRIPT_DIR/streamdvricon.png" "$RESOURCES_DIR/StreamDVRIcon.png"
+if [ -f "$SCRIPT_DIR/macOS/Assets/streamdvricon.png" ]; then
+    cp "$SCRIPT_DIR/macOS/Assets/streamdvricon.png" "$RESOURCES_DIR/StreamDVRIcon.png"
     echo "  ✓ Header icon embedded"
 fi
 

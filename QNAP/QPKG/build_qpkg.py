@@ -17,11 +17,11 @@ import tarfile
 ROOT = os.path.dirname(os.path.abspath(__file__))
 WORK = os.path.join(ROOT, "payload")
 CONTROL_DIR = os.path.join(ROOT, "control")
-OUT_QPKG = "/Users/kamil/Downloads/TwitchDVR_mac/StreamDVR_QNAP/StreamDVR_2.6.4_x86_64.qpkg"
+OUT_QPKG = os.path.join(ROOT, "..", "..", "build", "StreamDVR_3.0.0_x86_64.qpkg")
 
 NAME = "StreamDVR"
 DISPLAY_NAME = "Stream DVR"
-VER = "2.6.4"
+VER = "3.0.0"
 PAD = 20480  # QDK reserves this many bytes for the control tar member
 BUILD_DATE = __import__("datetime").date.today().strftime("%Y%m%d")
 

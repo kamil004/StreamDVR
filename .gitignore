@@ -7,23 +7,19 @@ icnsbuild/
 icnsbuild_canvas.png
 icon.iconset/
 
-# .NET / Windows build artifacts
-**/obj/
-**/bin/
-Windows/StreamDVR.exe
-Windows/StreamDVR-Windows*.zip
-Windows/.vs/
-Windows/publish/
+# Swift build artifacts
+macOS/Sources/.build/
+
+# QNAP / Go build artifacts
+QNAP/Sources/*.exe
+QNAP/Sources/twitchdvr
+QNAP/Sources/**/twitchdvr-web
+QNAP/QPKG/payload/twitchdvr/streamdvr-web
+
+# Compiled binaries
+build/StreamDVR.app
+build/StreamDVR_*.qpkg
 
 # Misc
 *.user
-
-# QNAP / Go build artifacts
-StreamDVR_QNAP/**/*.qpkg
-StreamDVR_QNAP/TwitchQPKG/payload/twitchdvr/streamdvr-web
-StreamDVR_QNAP/Do portu/
-# Compiled binaries
-StreamDVR_QNAP/TwitchQPKG/twitchdvr/twitchdvr
-StreamDVR_QNAP/TwitchQPKG/twitchdvr/twitchdvr-*
-build/StreamDVR.app/Contents/MacOS/StreamDVR
-StreamDVR_*.qpkg
+*.pyc
